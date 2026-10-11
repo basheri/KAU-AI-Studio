@@ -1440,7 +1440,7 @@ function FindingDetail({
       r.created_at > f.created_at,
   );
   const applicableExceptions = (exceptions.data ?? []).filter(
-    (e) => !e.artifact_id || e.artifact_id === f.target_artifact_id,
+    (e) => e.status === "approved" && (!e.artifact_id || e.artifact_id === f.target_artifact_id),
   );
   const nameOf = (id: string | null) =>
     members.data?.find((m) => m.user_id === id)?.email ??

@@ -1074,30 +1074,42 @@ export type Database = {
           artifact_id: string | null
           created_at: string
           created_by: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_comment: string | null
           id: string
           justification: string
           project_id: string
           reference: string
+          status: Database["public"]["Enums"]["exception_status"]
           title: string
         }
         Insert: {
           artifact_id?: string | null
           created_at?: string
           created_by: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_comment?: string | null
           id?: string
           justification: string
           project_id: string
           reference: string
+          status?: Database["public"]["Enums"]["exception_status"]
           title: string
         }
         Update: {
           artifact_id?: string | null
           created_at?: string
           created_by?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_comment?: string | null
           id?: string
           justification?: string
           project_id?: string
           reference?: string
+          status?: Database["public"]["Enums"]["exception_status"]
           title?: string
         }
         Relationships: [
@@ -2306,6 +2318,10 @@ export type Database = {
         Args: { _description?: string; _title: string }
         Returns: string
       }
+      decide_exception: {
+        Args: { _approve: boolean; _comment?: string; _exception_id: string }
+        Returns: undefined
+      }
       decide_review: {
         Args: {
           _comment?: string
@@ -2595,6 +2611,7 @@ export type Database = {
         | "rubric"
         | "glossary"
         | "references"
+      exception_status: "pending" | "approved" | "rejected"
       finding_status:
         | "open"
         | "acknowledged"
@@ -2788,6 +2805,7 @@ export const Constants = {
         "glossary",
         "references",
       ],
+      exception_status: ["pending", "approved", "rejected"],
       finding_status: [
         "open",
         "acknowledged",

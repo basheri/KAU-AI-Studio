@@ -13,3 +13,10 @@
 - [x] Compliance UI: Sources, Rules, Run, Findings board/detail; Arabic/English
 - [ ] Browser scenario (owner + compliance reviewer; phone width) + cleanup
 - [x] Ledger/readiness updated
+
+## Increment 6b — Review segregation of duties
+- [x] Migration 0008: protected compliance/export stages, no self-decision, exception approval
+- [x] Reviews and Compliance UI updated; client mirror and tests
+- [x] Local database verification (`tests/sql/run.sh`, 29/29)
+- [ ] Run `bun run test:db` against the backend
+- [ ] Policy decision: review route per artifact kind; quorum for committee stages

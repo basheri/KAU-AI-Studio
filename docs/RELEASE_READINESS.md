@@ -8,6 +8,7 @@ Status: **not release-ready**. The core scope is incomplete (compliance library,
 | Project tables have RLS | Yes, for all current tables (compliance tables: enabled; isolation test written, not yet run) | Non-member zero-row tests in `tests/db/*.db.ts` |
 | Storage authorization | Yes (`project-sources`) | Non-member list/download/upload denied in `intake.db.ts` |
 | Mutations via audited RPCs | Yes | Writes only through security-definer RPCs; tables are SELECT-only to users |
+| Segregation of duties | Built and verified locally (0008) | No self-decision (except export freeze); compliance stage cannot be removed; exceptions need independent approval. `tests/sql/run.sh`: 29/29 on PostgreSQL 16; live-backend run pending |
 | Immutability of approved/in-review | Yes | Lock triggers apply to every role, tested with the service key |
 | Security linter | 1 info (intentional locked `platform_admins`) and 30 warnings for RPCs meant to be callable (each checks role itself) | `supabase linter` |
 | Accessibility | Partial: labelled controls, keyboard tested in E2E; no full WCAG 2.2 AA audit yet | — |
@@ -18,6 +19,9 @@ Status: **not release-ready**. The core scope is incomplete (compliance library,
 | Compliance gate | Built, not yet verified against the backend | Open blocker findings block review request and approval (triggers in `0007`); `compliance.db.ts` covers it |
 
 ## Open risks
+- Migration 0008 turned all existing documented exceptions to *pending*; a compliance reviewer must approve them before they can be used again.
+- Single-owner projects need a second approver for stage 1 (brief confirmation) under the no-self-decision rule.
+- Review routing is still the same six stages for every artifact kind, with one decider per stage; per-kind routes and quorum await a policy decision.
 - Compliance Library database tests have not been run since migration 0007 was written; treat compliance enforcement as unverified until `bun run test:db` passes.
 - Compliance sources and rules are project-specific; there is no institution-wide, officially approved library yet.
 - The embed allowlist (YouTube no-cookie, YouTube, Vimeo player) is an interim platform default and needs institutional approval.

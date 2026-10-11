@@ -57,6 +57,13 @@
       "when": 1791591103561,
       "tag": "0007_compliance_library",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791692934869,
+      "tag": "0008_review_segregation_of_duties",
+      "breakpoints": true
     }
   ]
 }

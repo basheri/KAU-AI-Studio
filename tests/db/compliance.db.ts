@@ -672,6 +672,24 @@ describe("compliance library", () => {
         _justification: "Test-only waiver",
       }),
     )) as string;
+    // A pending exception cannot close a finding; another compliance reviewer must approve it first.
+    expect(
+      (
+        await reviewer().rpc("transition_finding", {
+          _finding_id: manual.id,
+          _to: "accepted_exception",
+          _comment: "Waiver approved by committee",
+          _exception_id: exc,
+        })
+      ).error?.message,
+    ).toMatch(/not been approved/);
+    await ok(
+      reviewer().rpc("decide_exception", {
+        _exception_id: exc,
+        _approve: true,
+        _comment: "Committee minutes checked",
+      }),
+    );
     await ok(
       reviewer().rpc("transition_finding", {
         _finding_id: manual.id,

@@ -94,3 +94,32 @@ Project-scoped, versioned compliance sources and rules; immutable runs with a fr
 1. Run `bun run test:db` against the backend and record the result here.
 2. Browser scenario for compliance (needs two throwaway users: owner + compliance reviewer), including the 390-wide phone check.
 3. Then media upload and the media-rights workflow.
+
+## Increment 6b — Review segregation of duties (migration 0008)
+
+### Why
+A governance review found that a program owner could remove the compliance stage, that whoever submitted or wrote a version could approve it, and that any contributor could create the exception used to approve their own work.
+
+### Ruling (options compared)
+| Option | Control strength | Workflow impact | Ruling |
+|---|---|---|---|
+| A. Policy only ("owners must not…") | None in the database | None | Rejected: contradicts "database is authoritative" |
+| B. **Database triggers + RPC checks** | Holds for every role, including the service role | Single-owner projects need a second approver for stage 1 | **Chosen** |
+| C. Full redesign (quorum, per-kind routes) | Strongest | Large | Deferred: needs a policy decision on routes per artifact kind |
+
+### Migration `0008_review_segregation_of_duties`
+- **Protected stages:** every project keeps an active `compliance_review` stage, decided only by `compliance_reviewer` / `system_administrator`, and `export_frozen` as its last stage. Enforced in `save_workflow_stages` and by trigger `workflow_stages_protected`. Existing projects were repaired in the migration: missing or deactivated protected stages are re-activated (compliance before export), and widened compliance approvers are reset to `compliance_reviewer`.
+- **No self-decision:** trigger `review_decisions_segregation` refuses a decision by the review requester or the version's creator. `export_frozen` is exempt because it is an administrative freeze after independent stages.
+- **Exception approval:** `documented_exceptions.status` (`pending` → `approved` / `rejected`, final). New RPC `decide_exception` (compliance reviewer or system administrator, never the creator; rejection needs a comment; audited `exception.approved` / `exception.rejected`). Exceptions are otherwise immutable. `approve_exception` decisions and `accepted_exception` findings require an approved exception. **Existing exceptions became `pending`** and need approval before reuse.
+- UI: the Reviews screen explains when you cannot decide your own work, offers only approved exceptions, and gives compliance reviewers an exceptions panel to approve or reject. Compliance findings offer only approved exceptions. Client mirror: `selfDecisionBlocked`, `canDecideException` in `src/features/reviews/rules.ts`.
+
+### TDD evidence
+- RED: new mirror tests in `review-rules.test.ts` failed before the rules existed.
+- **Local database run (new, key-free):** `bash tests/sql/run.sh` applies migrations 0000–0008 to a fresh PostgreSQL 16 database with Supabase stand-ins, acts as six throwaway users through the real functions and row-level security, and checks repair of two pre-existing weakened projects. **29/29 checks passed.** A mutation check (guard trigger removed) made the self-decision check fail as expected.
+- All migrations 0000–0007 also apply cleanly to that local database.
+- typecheck clean; lint 0 errors (9 old warnings); unit/screen **75 passed**; build succeeds.
+- `tests/db/reviews.db.ts` and `tests/db/compliance.db.ts` were updated for the new rules (second program owner, instructional designer approver, exception approval, protected stages, forged self-decision). **They have not been run against the live backend yet** (no keys in this environment).
+
+### Consequences to manage
+- A project with a single program owner cannot confirm a brief that owner wrote and submitted. Add a second program owner, or give stage 1 an additional approver role.
+- Edits made in place to a draft by a contributor other than its creator do not block that contributor from deciding; only the requester and the creator are blocked.

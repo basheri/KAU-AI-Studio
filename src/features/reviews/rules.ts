@@ -39,3 +39,34 @@ export function decisionProblem(
   if (decision === "approve_exception" && !exceptionId) return "exception";
   return null;
 }
+
+// Segregation of duties — mirrors migration 0008 triggers; the database stays authoritative.
+
+/** The requester and the version's creator cannot decide, except at the administrative export freeze. */
+export function selfDecisionBlocked(p: {
+  stageKey: string;
+  userId: string;
+  requestedBy: string;
+  versionCreatedBy: string;
+}): boolean {
+  return (
+    p.stageKey !== "export_frozen" &&
+    (p.userId === p.requestedBy || p.userId === p.versionCreatedBy)
+  );
+}
+
+export type ExceptionStatus = Database["public"]["Enums"]["exception_status"];
+type Role = Database["public"]["Enums"]["project_role"];
+
+/** A pending exception is decided by a compliance reviewer or administrator other than its creator. */
+export function canDecideException(
+  e: { status: ExceptionStatus; created_by: string },
+  role: Role | undefined,
+  userId: string,
+): boolean {
+  return (
+    e.status === "pending" &&
+    e.created_by !== userId &&
+    (role === "compliance_reviewer" || role === "system_administrator")
+  );
+}

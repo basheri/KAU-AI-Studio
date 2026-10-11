@@ -110,11 +110,12 @@ async function decide(
 }
 
 /** Approver per default stage, by position. */
+/** Never the requester or version creator (owner), except at the export freeze. */
 const approverFor = () => [
-  users.owner,
-  users.sme,
-  users.sme,
-  users.sme,
+  users.coowner,
+  users.designer,
+  users.designer,
+  users.designer,
   users.compliance,
   users.owner,
 ];
@@ -140,7 +141,8 @@ async function approveRemaining(versionId: string) {
 }
 
 beforeAll(async () => {
-  for (const n of ["owner", "sme", "compliance", "observer", "outsider"]) await makeUser(n);
+  for (const n of ["owner", "coowner", "sme", "designer", "compliance", "observer", "outsider"])
+    await makeUser(n);
   const p = await users.owner.client.rpc("create_project", {
     _title: `Review Program ${run}`,
     _description: null,
@@ -148,7 +150,9 @@ beforeAll(async () => {
   if (p.error) throw p.error;
   projectId = p.data as string;
   projectIds.push(projectId);
+  await join("coowner", "program_owner");
   await join("sme", "subject_matter_expert");
+  await join("designer", "instructional_designer");
   await join("compliance", "compliance_reviewer");
   await join("observer", "observer");
 }, 90_000);
@@ -254,9 +258,9 @@ describe("governed review workflow", () => {
       _assignees: [],
     });
     const req = await openRequest(versionId);
-    expect((await decide(users.owner, req.id, "request_changes", "  ")).error).not.toBeNull();
+    expect((await decide(users.coowner, req.id, "request_changes", "  ")).error).not.toBeNull();
     expect(
-      (await decide(users.owner, req.id, "approve_exception", "justified")).error,
+      (await decide(users.coowner, req.id, "approve_exception", "justified")).error,
     ).not.toBeNull();
     // Stage 1 approver is the program owner only
     expect((await decide(users.sme, req.id, "approve")).error).not.toBeNull();
@@ -273,6 +277,17 @@ describe("governed review workflow", () => {
       _justification: "Approved by council",
     });
     expect(exc.error).toBeNull();
+    // Exceptions start pending and only another compliance reviewer can approve them.
+    const pending = await users.owner.client
+      .from("documented_exceptions")
+      .select("status")
+      .eq("id", exc.data)
+      .single();
+    expect(pending.data?.status).toBe("pending");
+    expect(
+      (await users.sme.client.rpc("decide_exception", { _exception_id: exc.data, _approve: true }))
+        .error,
+    ).not.toBeNull();
     await users.owner.client.rpc("request_review", {
       _version_id: versionId,
       _note: null,
@@ -284,6 +299,26 @@ describe("governed review workflow", () => {
       expect((await decide(approverFor()[i], req.id, "approve")).error).toBeNull();
     }
     const comp = await openRequest(versionId);
+    expect(
+      (
+        await decide(
+          users.compliance,
+          comp.id,
+          "approve_exception",
+          "Exception accepted",
+          exc.data as string,
+        )
+      ).error?.message,
+    ).toMatch(/not been approved/);
+    expect(
+      (
+        await users.compliance.client.rpc("decide_exception", {
+          _exception_id: exc.data,
+          _approve: true,
+          _comment: "Council minutes checked",
+        })
+      ).error,
+    ).toBeNull();
     expect(
       (
         await decide(
@@ -334,6 +369,7 @@ describe("governed review workflow", () => {
       "review.approved",
       "artifact_version.approved",
       "exception.created",
+      "exception.approved",
     ])
       expect(actions).toContain(a);
 
@@ -360,7 +396,7 @@ describe("governed review workflow", () => {
       _assignees: [],
     });
     const s1 = await openRequest(versionId);
-    await decide(users.owner, s1.id, "approve");
+    await decide(users.coowner, s1.id, "approve");
     const s2 = await openRequest(versionId);
     expect(
       (await decide(users.sme, s2.id, "request_changes", "Outcomes are unclear")).error,
@@ -507,6 +543,50 @@ describe("governed review workflow", () => {
     ).not.toBeNull();
   });
 
+  it("blocks the requester and the version creator from deciding, except at the export freeze", async () => {
+    const { versionId } = await newArtifact(`Brief Self ${run}`);
+    await users.owner.client.rpc("request_review", {
+      _version_id: versionId,
+      _note: null,
+      _assignees: [],
+    });
+    const s1 = await openRequest(versionId);
+    expect((await decide(users.owner, s1.id, "approve")).error?.message).toMatch(
+      /cannot decide a review you requested/,
+    );
+    expect((await decide(users.coowner, s1.id, "approve")).error).toBeNull();
+    const s2 = await openRequest(versionId);
+    expect((await decide(users.designer, s2.id, "request_changes", "Rework")).error).toBeNull();
+    // The SME writes the correction; someone else submits it; the SME still cannot decide it.
+    const child = (
+      await users.sme.client.rpc("edit_artifact", {
+        _version_id: versionId,
+        _content: "Corrected",
+        _change_summary: null,
+      })
+    ).data as string;
+    await users.owner.client.rpc("request_review", {
+      _version_id: child,
+      _note: null,
+      _assignees: [],
+    });
+    const c2 = await openRequest(child);
+    expect((await decide(users.sme, c2.id, "approve")).error?.message).toMatch(
+      /version you created/,
+    );
+    // Even full database access cannot record a self-decision.
+    const forged = await admin.from("review_decisions").insert({
+      project_id: projectId,
+      review_request_id: c2.id,
+      artifact_version_id: child,
+      stage_id: c2.stage_id,
+      decision: "approve",
+      actor_id: users.sme.id,
+      actor_role: "subject_matter_expert",
+    });
+    expect(forged.error?.message).toMatch(/cannot decide/);
+  });
+
   it("lets only the program owner reconfigure stages", async () => {
     const p = await users.owner.client.rpc("create_project", {
       _title: `Config ${run}`,
@@ -526,7 +606,37 @@ describe("governed review workflow", () => {
         name_en: "Final",
         approver_roles: ["program_owner", "subject_matter_expert"],
       },
+      {
+        key: "compliance_review",
+        name_ar: "امتثال",
+        name_en: "Compliance",
+        approver_roles: ["compliance_reviewer"],
+      },
+      {
+        key: "export_frozen",
+        name_ar: "تجميد",
+        name_en: "Export",
+        approver_roles: ["program_owner"],
+      },
     ];
+    const save = (c: SupabaseClient, st: unknown) =>
+      c.rpc("save_workflow_stages", { _project_id: p.data, _stages: st });
+    // The compliance stage cannot be removed or opened to other roles, and the export freeze stays last.
+    expect(
+      (await save(users.owner.client, stages.slice(0, 2).concat(stages[3]!))).error?.message,
+    ).toMatch(/compliance_review stage is required/);
+    expect(
+      (await save(users.owner.client, [stages[0], stages[3], stages[2]])).error?.message,
+    ).toMatch(/must be the last stage/);
+    expect(
+      (
+        await save(users.owner.client, [
+          stages[0],
+          { ...stages[2], approver_roles: ["program_owner"] },
+          stages[3],
+        ])
+      ).error?.message,
+    ).toMatch(/only be decided by compliance/);
     expect(
       (await users.sme.client.rpc("save_workflow_stages", { _project_id: p.data, _stages: stages }))
         .error,
@@ -545,6 +655,17 @@ describe("governed review workflow", () => {
       .eq("project_id", p.data)
       .eq("is_active", true)
       .order("position");
-    expect(data?.map((s) => s.stage_key)).toEqual(["program_brief_confirmed", "final"]);
+    expect(data?.map((s) => s.stage_key)).toEqual([
+      "program_brief_confirmed",
+      "final",
+      "compliance_review",
+      "export_frozen",
+    ]);
+    const off = await admin
+      .from("workflow_stages")
+      .update({ is_active: false })
+      .eq("project_id", p.data)
+      .eq("stage_key", "compliance_review");
+    expect(off.error?.message).toMatch(/cannot be removed/);
   });
 });

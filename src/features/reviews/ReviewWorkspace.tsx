@@ -9,6 +9,7 @@ import {
   assignReviewer,
   createArtifact,
   createException,
+  decideException,
   decideReview,
   editArtifact,
   exceptionsQuery,
@@ -22,8 +23,10 @@ import {
 } from "./api";
 import {
   ARTIFACT_KINDS,
+  canDecideException,
   decisionProblem,
   editOutcome,
+  selfDecisionBlocked,
   type ArtifactKind,
   type DecisionKind,
 } from "./rules";
@@ -491,7 +494,17 @@ function ReviewPanel({
   const canContribute = project.role !== "observer";
   const open = review.data?.requests.find((r) => r.status === "open");
   const openStage = stages.find((s) => s.id === open?.stage_id);
-  const canDecide = !!openStage && openStage.approver_roles.includes(project.role);
+  const roleCanDecide = !!openStage && openStage.approver_roles.includes(project.role);
+  const selfBlocked =
+    !!open &&
+    !!openStage &&
+    selfDecisionBlocked({
+      stageKey: openStage.stage_key,
+      userId,
+      requestedBy: open.requested_by,
+      versionCreatedBy: version.created_by,
+    });
+  const canDecide = roleCanDecide && !selfBlocked;
 
   // Request review
   const [note, setNote] = useState("");
@@ -536,16 +549,16 @@ function ReviewPanel({
   const [exJust, setExJust] = useState("");
   const addEx = useMutation({
     mutationFn: () => createException(project.id, artifactId, exTitle, exJust),
-    onSuccess: (id) => {
+    onSuccess: () => {
       setExTitle("");
       setExJust("");
-      setExceptionId(id);
       refresh();
     },
   });
   const projectExceptions = (exceptions.data ?? []).filter(
     (x) => !x.artifact_id || x.artifact_id === artifactId,
   );
+  const approvedExceptions = projectExceptions.filter((x) => x.status === "approved");
   const exRef = (id: string | null) => exceptions.data?.find((x) => x.id === id)?.reference;
 
   return (
@@ -676,7 +689,7 @@ function ReviewPanel({
                   onChange={(e) => setExceptionId(e.target.value)}
                 >
                   <option value="">{t("rv.none")}</option>
-                  {projectExceptions.map((x) => (
+                  {approvedExceptions.map((x) => (
                     <option key={x.id} value={x.id}>
                       {x.reference} — {x.title}
                     </option>
@@ -696,7 +709,9 @@ function ReviewPanel({
               </button>
             </form>
           ) : (
-            <p className="text-sm text-muted-foreground">{t("rv.cannotDecide")}</p>
+            <p className="text-sm text-muted-foreground">
+              {roleCanDecide && selfBlocked ? t("rv.selfDecision") : t("rv.cannotDecide")}
+            </p>
           )}
 
           {canContribute && (
@@ -733,6 +748,7 @@ function ReviewPanel({
                     onChange={(e) => setExJust(e.target.value)}
                   />
                 </div>
+                <p className="text-xs text-muted-foreground">{t("rv.exceptionPending")}</p>
                 <ErrorNote show={addEx.isError} />
                 <button
                   className="chip-btn"
@@ -772,6 +788,14 @@ function ReviewPanel({
         )}
       </section>
 
+      <ExceptionsPanel
+        exceptions={projectExceptions}
+        project={project}
+        userId={userId}
+        emailOf={emailOf}
+        onChange={refresh}
+      />
+
       <CommentThread
         versionId={version.id}
         canContribute={canContribute}
@@ -782,6 +806,140 @@ function ReviewPanel({
         mentions={review.data?.mentions ?? []}
       />
     </>
+  );
+}
+
+type DocumentedException = NonNullable<
+  Awaited<ReturnType<NonNullable<ReturnType<typeof exceptionsQuery>["queryFn"]>>>
+>[number];
+
+function ExceptionsPanel({
+  exceptions,
+  project,
+  userId,
+  emailOf,
+  onChange,
+}: {
+  exceptions: DocumentedException[];
+  project: MyProject;
+  userId: string;
+  emailOf: (id: string) => string;
+  onChange: () => void;
+}) {
+  const { t } = useLocale();
+  return (
+    <section className="surface-card p-5" aria-labelledby="rv-exceptions">
+      <h2 id="rv-exceptions" className="mb-3 font-semibold">
+        {t("rv.exceptions")}
+      </h2>
+      {exceptions.length ? (
+        <ul className="space-y-3">
+          {exceptions.map((x) => (
+            <ExceptionItem
+              key={x.id}
+              exception={x}
+              canDecide={canDecideException(x, project.role, userId)}
+              emailOf={emailOf}
+              onChange={onChange}
+            />
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">{t("rv.noExceptions")}</p>
+      )}
+    </section>
+  );
+}
+
+function ExceptionItem({
+  exception: x,
+  canDecide,
+  emailOf,
+  onChange,
+}: {
+  exception: DocumentedException;
+  canDecide: boolean;
+  emailOf: (id: string) => string;
+  onChange: () => void;
+}) {
+  const { t } = useLocale();
+  const [comment, setComment] = useState("");
+  const [needComment, setNeedComment] = useState(false);
+  const decide = useMutation({
+    mutationFn: (approve: boolean) => decideException(x.id, approve, comment),
+    onSuccess: () => {
+      setComment("");
+      onChange();
+    },
+  });
+  const reject = () => {
+    setNeedComment(!comment.trim());
+    if (comment.trim()) decide.mutate(false);
+  };
+  return (
+    <li className="rounded-md border border-border p-3 text-sm">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="font-medium">
+          {x.reference} — {x.title}
+        </p>
+        <span
+          className="state-badge"
+          data-state={
+            x.status === "approved"
+              ? "approved"
+              : x.status === "rejected"
+                ? "changes_requested"
+                : "in_review"
+          }
+        >
+          {t(k(`rv.exStatus.${x.status}`))}
+        </span>
+      </div>
+      <p className="mt-1">{x.justification}</p>
+      <p className="mt-1 text-muted-foreground">
+        {emailOf(x.created_by)}
+        {x.decided_by && (
+          <>
+            {" "}
+            · {t(k(`rv.exStatus.${x.status}`))}: {emailOf(x.decided_by)}
+          </>
+        )}
+      </p>
+      {x.decision_comment && <p className="mt-1">{x.decision_comment}</p>}
+      {canDecide && (
+        <div className="mt-2 flex flex-wrap items-end gap-2">
+          <div className="min-w-48 flex-1">
+            <label htmlFor={`exd-${x.id}`} className="field-label">
+              {t("rv.exComment")}
+            </label>
+            <input
+              id={`exd-${x.id}`}
+              className="field-input"
+              maxLength={2000}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={decide.isPending}
+            onClick={() => decide.mutate(true)}
+          >
+            {t("rv.exApprove")}
+          </button>
+          <button type="button" className="chip-btn" disabled={decide.isPending} onClick={reject}>
+            {t("rv.exReject")}
+          </button>
+        </div>
+      )}
+      {needComment && (
+        <p role="alert" className="mt-1 text-destructive">
+          {t("rv.exCommentRequired")}
+        </p>
+      )}
+      <ErrorNote show={decide.isError} />
+    </li>
   );
 }
 

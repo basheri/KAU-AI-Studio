@@ -552,7 +552,8 @@ const en = {
   "cl.postComment": "Post comment",
   "cl.changeStatus": "Change status",
   "cl.exception": "Approved exception",
-  "cl.noExceptions": "No documented exceptions in this project. Record one in Reviews first.",
+  "cl.noExceptions":
+    "No approved exceptions for this item. Record one in Reviews and have a compliance reviewer approve it.",
   "cl.verifyRun": "Verification run (a later run where this rule passes)",
   "cl.noVerifyRun": "Run the check again after fixing the issue; then choose that run here.",
   "cl.apply": "Apply",
@@ -564,6 +565,19 @@ const en = {
   "cl.openBlockers": "open blockers",
   "cl.remediation": "Remediation",
   "cl.closureMissing": "This status needs the comment, exception or verification run shown above.",
+  "rv.selfDecision":
+    "You requested this review or created this version, so another member must decide it.",
+  "rv.exceptions": "Documented exceptions",
+  "rv.noExceptions": "No documented exceptions yet.",
+  "rv.exceptionPending":
+    "New exceptions stay pending until a compliance reviewer other than you approves them.",
+  "rv.exStatus.pending": "Pending approval",
+  "rv.exStatus.approved": "Approved",
+  "rv.exStatus.rejected": "Rejected",
+  "rv.exComment": "Decision comment",
+  "rv.exApprove": "Approve exception",
+  "rv.exReject": "Reject exception",
+  "rv.exCommentRequired": "A comment is required to reject an exception.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -1100,7 +1114,8 @@ const ar: Record<MessageKey, string> = {
   "cl.postComment": "نشر التعليق",
   "cl.changeStatus": "تغيير الحالة",
   "cl.exception": "الاستثناء المعتمد",
-  "cl.noExceptions": "لا توجد استثناءات موثقة في المشروع. سجّل استثناءً من المراجعات أولًا.",
+  "cl.noExceptions":
+    "لا توجد استثناءات معتمدة لهذا العنصر. سجّل استثناءً من المراجعات ليعتمده مراجع الامتثال.",
   "cl.verifyRun": "فحص التحقق (فحص لاحق تنجح فيه القاعدة)",
   "cl.noVerifyRun": "أعد تشغيل الفحص بعد المعالجة ثم اختر ذلك الفحص هنا.",
   "cl.apply": "تطبيق",
@@ -1112,6 +1127,17 @@ const ar: Record<MessageKey, string> = {
   "cl.openBlockers": "موانع مفتوحة",
   "cl.remediation": "المعالجة",
   "cl.closureMissing": "هذه الحالة تتطلب التعليق أو الاستثناء أو فحص التحقق المبيّن أعلاه.",
+  "rv.selfDecision": "طلبتَ هذه المراجعة أو أنشأتَ هذا الإصدار، لذا يجب أن يقرر فيها عضو آخر.",
+  "rv.exceptions": "الاستثناءات الموثقة",
+  "rv.noExceptions": "لا توجد استثناءات موثقة بعد.",
+  "rv.exceptionPending": "تبقى الاستثناءات الجديدة معلّقة حتى يعتمدها مراجع امتثال غيرك.",
+  "rv.exStatus.pending": "بانتظار الاعتماد",
+  "rv.exStatus.approved": "معتمد",
+  "rv.exStatus.rejected": "مرفوض",
+  "rv.exComment": "تعليق القرار",
+  "rv.exApprove": "اعتماد الاستثناء",
+  "rv.exReject": "رفض الاستثناء",
+  "rv.exCommentRequired": "رفض الاستثناء يتطلب تعليقًا.",
 };
 
 const dictionaries: Record<Locale, Record<MessageKey, string>> = { en, ar };
