@@ -67,3 +67,30 @@ Critical: missing_title, missing_language, no_lessons, empty_payload, invalid_he
 
 ### Remaining highest-value gap
 Real media upload and the media-rights workflow (records currently hold an https source and a rights note), then the versioned compliance library.
+
+## Increment 6 — Compliance Library (database layer + UI; database tests pending a run)
+
+### Architecture ruling
+Project-scoped, versioned compliance sources and rules; immutable runs with a frozen snapshot; findings with an append-only event log. Same pattern as earlier increments: tables are SELECT-only to members, every write goes through an audited security-definer RPC that checks the project role, and lock triggers apply to every role (including the service role).
+
+### Migrations
+- `0007_compliance_library`: enums `compliance_source_status` (6), `compliance_rule_status`, `rule_severity`, `rule_check_type`, `finding_status`; tables `compliance_sources`, `compliance_rulesets`, `compliance_rules`, `compliance_rule_evidence`, `compliance_runs`, `compliance_findings`, `compliance_finding_events` (member-only SELECT RLS, no client write grants); view `compliance_sources_current` (`security_invoker`, computes expiry by date); triggers: source/rule freeze after draft, rule activation needs an active in-date source, evidence frozen for non-draft rules, runs and finding events immutable, blocker-closure invariants on findings, review request/approval gate on open blockers; RPCs `save/revise/transition_compliance_source`, `record_source_checksum` (service role only), `save_compliance_ruleset`, `save/revise_compliance_rule`, `set_compliance_rule_status`, `run_compliance`, `assign_finding`, `comment_finding`, `transition_finding`, `compliance_readiness` — all audited.
+
+### UI (this change)
+- `/compliance` now hosts the Compliance Library (`src/features/compliance/ComplianceLibrary.tsx`): Sources (create/edit draft, submit, approve, reject with comment, withdraw, revise), Rules (rulesets, draft rules with automated check, applicability, dates and cited evidence; activate, retire with comment, revise), Run check (target version, ruleset, program context; frozen run results), Findings board (open / in progress / closed) with detail: evidence, assignment, comments, status changes that ask up front for the comment, approved exception or verification run the database requires, and history.
+- Client mirror for live hints only: `src/features/compliance/rules.ts` (source status by date, applicability, form checks, allowed finding transitions per role). The database stays authoritative.
+- Arabic (default, RTL) and English strings in `locale.ts` (`cl.*`, plus `kind.course_content`).
+
+### TDD evidence
+- RED: `compliance-rules.test.ts` failed (module missing) before `rules.ts` existed.
+- GREEN (this change):
+  - typecheck: clean
+  - lint: 0 errors, 9 old warnings (was 49 errors: formatting in `tests/db/compliance.db.ts`, fixed)
+  - unit/screen: 12 files, **73 passed** (63 existing + 4 mirror + 6 compliance screen)
+  - build: succeeds
+- **Not run in this change:** `bun run test:db` (8 compliance database tests in `tests/db/compliance.db.ts`) and the browser suite. Both need the backend keys (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`), which this build environment does not have. Run them before treating compliance as verified.
+
+### Remaining highest-value gap
+1. Run `bun run test:db` against the backend and record the result here.
+2. Browser scenario for compliance (needs two throwaway users: owner + compliance reviewer), including the 390-wide phone check.
+3. Then media upload and the media-rights workflow.
