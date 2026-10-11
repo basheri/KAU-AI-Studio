@@ -7,6 +7,10 @@ import { editOutcome } from "@/features/reviews/rules";
 import type { StructuredArtifact } from "./api";
 import { briefQuery, confirmAssumptions, createArchitecture, updateBrief } from "./api";
 import { BRIEF_FIELDS, PROGRAM_CATEGORIES, type BriefFields, type ProgramCategory } from "./brief";
+import { AiBadge } from "@/features/ai/AiParts";
+import { BriefAiTools } from "@/features/ai/BriefAi";
+import { acceptBriefField, recordAiOutcome } from "@/features/ai/api";
+import { briefAiPending, fieldAiBadges } from "@/features/ai/gate";
 
 const k = (s: string) => s as MessageKey;
 
@@ -86,6 +90,15 @@ export function BriefEditor({
     mutationFn: () => confirmAssumptions(version.id),
     onSuccess: () => void refresh(),
   });
+  const accept = useMutation({
+    mutationFn: async (key: string) => {
+      await acceptBriefField(version.id, key);
+      const ref = brief.data?.fields[key as keyof BriefFields]?.source_ref ?? "";
+      if (ref.startsWith("ai_request:"))
+        void recordAiOutcome(ref.slice(11), "accepted").catch(() => {});
+    },
+    onSuccess: () => void refresh(),
+  });
   const arch = useMutation({
     mutationFn: () => createArchitecture(version.id),
     onSuccess: (id) => {
@@ -111,12 +124,18 @@ export function BriefEditor({
   const editable = canContribute && outcome !== "blocked";
   const dirty = JSON.stringify(fields) !== JSON.stringify(b.fields) || category !== b.category;
   const assumptionsEmpty = !fields.assumptions.ar.trim() && !fields.assumptions.en.trim();
-  const sf = b.source_files as { file_name: string; extraction_status: string } | null;
+  const sf = b.source_files as {
+    file_name: string;
+    extraction_status: string;
+    extraction_method?: string;
+  } | null;
   const snap = b.program_source_snapshots as {
     source_label: string;
     snapshot: { raw_text?: string };
   } | null;
 
+  const pending = briefAiPending(b.fields);
+  const isDraft = version.state === "draft";
   const setField = (key: (typeof BRIEF_FIELDS)[number], lang: "ar" | "en", value: string) =>
     setFields((f) => (f ? { ...f, [key]: { ...f[key], [lang]: value } } : f));
 
@@ -134,6 +153,12 @@ export function BriefEditor({
         <p className="text-sm" role="status">
           <span className="font-medium">{t("ps.extraction")}:</span> {sf.file_name} —{" "}
           {t(k(`ext.${sf.extraction_status}`))}
+          {sf.extraction_method === "ai" && (
+            <>
+              {" "}
+              <AiBadge kind="draft" />
+            </>
+          )}
         </p>
       )}
       {snap && (
@@ -173,8 +198,18 @@ export function BriefEditor({
         </select>
       </div>
 
+      {canContribute && isDraft && (
+        <BriefAiTools versionId={version.id} dirty={dirty} onChanged={() => void refresh()} />
+      )}
+      {pending.length > 0 && (
+        <p className="notice notice-warn" role="status">
+          {t("ai.brief.pending")} {pending.map((p) => t(k(`bf.${p}`))).join("، ")}
+        </p>
+      )}
+
       {BRIEF_FIELDS.filter((f) => f !== "category").map((key) => {
         const f = fields[key];
+        const ai = fieldAiBadges(b.fields[key]);
         return (
           <fieldset key={key} className="rounded-md border p-3">
             <legend className="flex items-center gap-2 px-1 text-sm font-medium">
@@ -186,12 +221,27 @@ export function BriefEditor({
               >
                 {t(k(`prov.${f.provenance ?? "none"}`))}
               </span>
+              {ai.field && <AiBadge kind={ai.field} />}
+              {canContribute && isDraft && pending.includes(key) && (
+                <button
+                  type="button"
+                  className="btn-link"
+                  disabled={dirty || accept.isPending}
+                  onClick={() => accept.mutate(key)}
+                >
+                  {t("ai.accept")}
+                </button>
+              )}
             </legend>
             <div className="grid gap-2 md:grid-cols-2">
               {(["ar", "en"] as const).map((lang) => (
                 <div key={lang}>
-                  <label htmlFor={`bf-${key}-${lang}`} className="text-xs text-muted-foreground">
+                  <label
+                    htmlFor={`bf-${key}-${lang}`}
+                    className="flex items-center gap-2 text-xs text-muted-foreground"
+                  >
                     {t(lang === "ar" ? "ps.ar" : "ps.en")}
+                    {ai[lang] && <AiBadge kind={ai[lang]!} />}
                   </label>
                   <textarea
                     id={`bf-${key}-${lang}`}
@@ -269,7 +319,7 @@ export function BriefEditor({
           <Link to="/reviews" className="btn-link">
             {t("ps.goReview")}
           </Link>
-          {(confirm.isError || arch.isError) && (
+          {(confirm.isError || arch.isError || accept.isError) && (
             <p role="alert" className="w-full text-sm text-destructive">
               {t("rv.failed")}
             </p>

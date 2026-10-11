@@ -31,6 +31,7 @@ import {
   type DecisionKind,
 } from "./rules";
 import { diffLines } from "./diff";
+import { ReviewAi } from "@/features/ai/ReviewAi";
 
 const k = (s: string) => s as MessageKey;
 
@@ -787,6 +788,12 @@ function ReviewPanel({
           <p className="text-sm text-muted-foreground">{t("rv.noDecisions")}</p>
         )}
       </section>
+
+      {canContribute && (
+        <section className="surface-card p-5" aria-label={t("ai.label")}>
+          <ReviewAi versionId={version.id} parentVersionId={version.parent_version_id} />
+        </section>
+      )}
 
       <ExceptionsPanel
         exceptions={projectExceptions}

@@ -20,3 +20,13 @@
 - [x] Local database verification (`tests/sql/run.sh`, 29/29)
 - [ ] Run `bun run test:db` against the backend
 - [ ] Policy decision: review route per artifact kind; quorum for committee stages
+
+## Increment 7 — AI assistance (built; off by default)
+- [x] Gateway, usage log, daily limit, glossary, settings (migration 0009)
+- [x] Phase 1: brief drafting, PDF/DOCX reading, brief translation and consistency check
+- [x] Phase 2: course specification + AI description/objectives/outcomes/topics/assessments/references + translation
+- [x] Phase 3: Course Studio block drafting, translated copies, alt text, learner clarity check
+- [x] Phase 4: compliance rule drafting, review change/discussion summaries
+- [ ] Decide AI hosting; enable for a pilot group; measure acceptance/edit rates
+- [ ] Live-backend and browser verification of AI flows
+- [ ] Name the glossary owner and load the institutional glossary

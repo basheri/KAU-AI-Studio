@@ -1,6 +1,6 @@
 #!/bin/bash
-# Local, key-free check of the review segregation-of-duties migration (0008) on plain PostgreSQL 16.
-# Builds a throwaway database: Supabase stubs -> migrations 0000-0007 -> pre-0008 fixtures -> 0008 -> checks.
+# Local, key-free checks of the security migrations (0008 segregation of duties, 0009 AI assistance) on plain PostgreSQL 16.
+# Builds a throwaway database: Supabase stubs -> migrations 0000-0007 -> pre-0008 fixtures -> 0008 -> checks -> 0009 -> checks.
 # Connection comes from the standard PG* variables (PGHOST, PGPORT, PGUSER). Run: bash tests/sql/run.sh
 # This complements, and does not replace, `bun run test:db` against the real backend.
 set -euo pipefail
@@ -15,4 +15,6 @@ $P -d "$DB" -f "$HERE/helpers.sql" >/dev/null
 $P -d "$DB" -f "$HERE/0008_pre.sql" >/dev/null
 $P -d "$DB" -f "$M/0008_review_segregation_of_duties.sql"
 $P -d "$DB" -f "$HERE/0008_checks.sql" | grep -v '^$' | grep -vE '^[0-9a-f-]{36}$'
+$P -d "$DB" -f "$M/0009_ai_assistance.sql"
+$P -d "$DB" -f "$HERE/0009_checks.sql" | grep -v '^$' | grep -vE '^[0-9a-f-]{36}$|^\{'
 $P -d postgres -c "DROP DATABASE $DB" >/dev/null

@@ -123,3 +123,41 @@ A governance review found that a program owner could remove the compliance stage
 ### Consequences to manage
 - A project with a single program owner cannot confirm a brief that owner wrote and submitted. Add a second program owner, or give stage 1 an additional approver role.
 - Edits made in place to a draft by a contributor other than its creator do not block that contributor from deciding; only the requester and the creator are blocked.
+
+## Increment 7 — AI assistance under human control (migration 0009)
+
+### Architecture ruling (options compared)
+| Option | Governance | Data control | Value | Ruling |
+|---|---|---|---|---|
+| A. General chat assistant on every screen | Weak: output bypasses structured fields and provenance | Hard to scope | Demo value | Rejected |
+| B. **Feature-specific drafting through one governed server gateway; schema-validated output; suggestions a person inserts; persistent AI provenance on briefs; review gates** | Strong | Off by default, explicit switch, per-user daily limit, full log | High | **Chosen** |
+| C. AI pre-screening reviews / auto-scoring compliance | Undermines independent human judgement (0008) | — | — | Rejected |
+
+Provider: Claude via the official Anthropic SDK (`claude-opus-5-5` default, adaptive thinking, per-feature effort, server-side refusal fallback `fallbacks: "default"`), behind a provider interface (`src/features/ai/gateway.ts`) so a Saudi-hosted or university-hosted model can be added without changing features. Every response is validated against a Zod schema before use.
+
+### Migration `0009_ai_assistance`
+- `ai_requests` usage log (service-role writes via `record_ai_request`, audited `ai.request`; immutable except a one-time `outcome` set by the requester through `record_ai_outcome`); `ai_authorize` (contributors only + today's count).
+- `glossary_terms` (readable by all signed-in users; `save_glossary_term` / `delete_glossary_term` platform-admin only, audited).
+- Brief provenance: `AI_draft` → `AI_accepted`; per-language `ar_prov`/`en_prov` `AI_translation` → `AI_translation_accepted`. `record_ai_brief_output` (service role) only fills empty fields or the empty language; `accept_ai_brief_field` (contributors); `brief_apply_manual` keeps the other language's AI label when one language is edited.
+- Source files: `extraction_method` (`deterministic`|`ai`) and `extraction_request_id`; `record_source_extraction` gains `_method`/`_request_id`; `create_program_brief` labels AI-read fields `AI_draft` with `#p<page>` in `source_ref`.
+- Course specification on the architecture `course` element (`details.spec`), validated by trigger (`course_spec_problem`, mirrored in `src/features/architecture/spec.ts`).
+- Review gate `gate_ai_review`: blocks review while a brief has unaccepted AI text or an architecture has unverified course references.
+
+### Features (by phase)
+1. Briefs: draft empty fields from an idea; translate missing languages; Arabic–English consistency check; DOCX read deterministically (`src/features/intake/docx.ts`), PDF (and unlabelled text) read by AI with page numbers.
+2. Architecture: suggest program outcomes; explain alignment defects; translate missing labels; course specification panel (description, credit hours, prerequisites, teaching strategies, objectives, topics with weeks and outcome coverage, assessment weights, references with "verified"); AI chain for description, objectives, learning outcomes (inserted as course-outcome elements mapped to program outcomes), topics, assessments (inserted as assessment elements mapped to outcomes, with weights), references (inserted unverified). Deterministic outcome wording checks (vague verbs, compound outcomes) without AI.
+3. Course Studio: draft text blocks (validated by `parsePayload`), translated copies placed after originals, alt-text suggestions, learner clarity check.
+4. Compliance: draft rules from a PDF source citing clause and page, saved only as drafts. Reviews: change summary and discussion summary (not stored).
+- Settings: AI status, institutional glossary (admin-edited), 30-day usage with an "unchanged acceptance" warning. The old status row that reported `LOVABLE_API_KEY` as "AI configured" was removed.
+
+### TDD evidence
+- RED observed: `docx-text.test.ts`, `course-spec.test.ts` (modules missing). Other new tests were written alongside their modules.
+- Local database run `bash tests/sql/run.sh`: migrations 0000–0009 on PostgreSQL 16 — **64/64 checks passed** (29 from 0008 + 35 for 0009: authorisation, logging immutability, daily count, no-overwrite drafting/translation, per-language provenance after manual edit, acceptance, review gate, outcome feedback, AI-read PDF provenance with page, glossary admin-only and audited, course specification validation, reference gate).
+- typecheck clean; lint 0 errors (9 old warnings); unit/screen **110 passed** (21 files; 35 new: engine 9, gate 3, DOCX 2, spec 6, block text 3, brief UI 4, spec UI 3, lesson UI 2, phase-4 UI 3); build succeeds.
+- Client bundle checked: no API key name, no provider address; the AI SDK is server-only.
+- **Not run:** live calls to the AI provider (no key here) and `bun run test:db` (no backend keys). Prompts and schemas are unit-tested; real output quality must be checked in a pilot.
+
+### Remaining highest-value gap
+1. Pilot with real users once hosting is decided; measure acceptance/edit/discard rates per feature.
+2. Run `bun run test:db` and a browser scenario for the AI flows against the live backend.
+3. Institutional glossary content (owner to be named).

@@ -236,3 +236,10 @@
   .notice-ok { @apply border-secondary bg-secondary/10; }
   .notice-warn { @apply border-destructive/50 bg-destructive/5; }
 }
+
+@layer components {
+  .ai-panel { @apply rounded-md border border-dashed border-primary/40 bg-accent/30 p-3; }
+  .ai-badge { @apply inline-flex items-center gap-1 rounded-full border border-primary/40 px-2 py-0.5 text-xs font-normal text-primary; }
+  .ai-badge[data-kind="accepted"], .ai-badge[data-kind="translationAccepted"] { @apply border-border text-muted-foreground; }
+  .ai-suggestion { @apply rounded-md border border-border bg-card p-3 text-sm; }
+}

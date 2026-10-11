@@ -17,6 +17,9 @@ import {
   type ArchMapping,
   type ElementType,
 } from "./alignment";
+import { ArchitectureAi } from "./ArchitectureAi";
+import { CourseSpecPanel } from "./CourseSpecPanel";
+import { unverifiedReferenceCount } from "@/features/ai/gate";
 
 const k = (s: string) => s as MessageKey;
 const newKey = () => `n-${crypto.randomUUID()}`;
@@ -216,6 +219,20 @@ export function ArchitectureEditor({
         {artifact.title}
       </h2>
       <VersionChips artifact={artifact} value={version.id} onChange={setVersionId} />
+      {editable && (
+        <ArchitectureAi
+          versionId={version.id}
+          elements={elements}
+          mappings={mappings}
+          defects={defects}
+          setElements={setElements}
+        />
+      )}
+      {unverifiedReferenceCount(elements) > 0 && (
+        <p className="notice notice-warn" role="status">
+          {t("spec.unverified")} ({unverifiedReferenceCount(elements)})
+        </p>
+      )}
 
       {section("program_outcome", null)}
       <div className="space-y-3">
@@ -236,6 +253,14 @@ export function ArchitectureEditor({
             className="space-y-3 rounded-lg border-s-4 border-secondary bg-muted/30 p-3"
           >
             <ul>{row(c)}</ul>
+            <CourseSpecPanel
+              versionId={version.id}
+              course={c}
+              elements={elements}
+              editable={editable}
+              setElements={setElements}
+              setMappings={setMappings}
+            />
             <div className="space-y-3 ps-3">
               {section("course_outcome", c.key, "h4")}
               {section("activity", c.key, "h4")}

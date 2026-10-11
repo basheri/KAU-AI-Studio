@@ -9,7 +9,7 @@ export type ProgramCategory = (typeof PROGRAM_CATEGORIES)[number];
 export const INTAKE_MODES = ["guided_idea", "document_upload", "redevelopment"] as const;
 export type IntakeMode = (typeof INTAKE_MODES)[number];
 
-export const PROVENANCE = ["manual", "extracted", "imported", "AI_draft"] as const;
+export const PROVENANCE = ["manual", "extracted", "imported", "AI_draft", "AI_accepted"] as const;
 export type Provenance = (typeof PROVENANCE)[number];
 
 export const BRIEF_FIELDS = [
@@ -32,6 +32,9 @@ export interface BriefField {
   en: string;
   provenance: Provenance | null;
   source_ref: string | null;
+  /** Per-language AI translation state, assigned by the database (migration 0009). */
+  ar_prov?: "AI_translation" | "AI_translation_accepted";
+  en_prov?: "AI_translation" | "AI_translation_accepted";
 }
 export type BriefFields = Record<BriefFieldKey, BriefField>;
 
@@ -46,6 +49,8 @@ export function normalizeBriefFields(
       en: f.en ?? "",
       provenance: f.provenance ?? null,
       source_ref: f.source_ref ?? null,
+      ...(f.ar_prov ? { ar_prov: f.ar_prov } : {}),
+      ...(f.en_prov ? { en_prov: f.en_prov } : {}),
     };
   }
   return out;
@@ -59,8 +64,12 @@ export const ALLOWED_UPLOAD_TYPES = [
   "text/plain",
   "text/markdown",
 ] as const;
-/** Types the deterministic extractor can read; others are recorded as "unsupported", never as success. */
-export const EXTRACTABLE_TYPES = ["text/plain", "text/markdown"] as const;
+/** Types the deterministic extractor can read (PDF needs AI); others are recorded as "unsupported", never as success. */
+export const EXTRACTABLE_TYPES = [
+  "text/plain",
+  "text/markdown",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+] as const;
 
 export function validateUpload(file: {
   type: string;

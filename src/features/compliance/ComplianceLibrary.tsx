@@ -5,6 +5,7 @@ import type { MessageKey } from "@/features/i18n/locale";
 import { myProjectsQuery, type MyProject } from "@/features/projects/api";
 import { structuredArtifactsQuery } from "@/features/intake/api";
 import { exceptionsQuery, membersQuery } from "@/features/reviews/api";
+import { RuleDraftAi } from "@/features/ai/ComplianceAi";
 import { BRIEF_FIELDS } from "@/features/intake/brief";
 import { BLOCK_TYPES } from "@/features/course/blocks";
 import { ELEMENT_TYPES } from "@/features/architecture/alignment";
@@ -390,6 +391,7 @@ function SourceItem({
         </p>
       )}
       <ErrorLine error={move.error ?? revise.error} />
+      {editor && <RuleDraftAi project={project} source={s} />}
     </li>
   );
 }

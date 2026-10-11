@@ -1,6 +1,6 @@
 # Release readiness
 
-Status: **not release-ready**. The core scope is incomplete (compliance library, AI adapter, media-rights workflow, quality gate, exports are still to come). The app is private and unpublished.
+Status: **not release-ready**. The core scope is incomplete (media-rights workflow, quality gate and exports are still to come; the compliance library and AI assistance are built but not yet verified against the live backend). The app is private and unpublished.
 
 | Gate | Status | Evidence |
 |---|---|---|
@@ -8,6 +8,7 @@ Status: **not release-ready**. The core scope is incomplete (compliance library,
 | Project tables have RLS | Yes, for all current tables (compliance tables: enabled; isolation test written, not yet run) | Non-member zero-row tests in `tests/db/*.db.ts` |
 | Storage authorization | Yes (`project-sources`) | Non-member list/download/upload denied in `intake.db.ts` |
 | Mutations via audited RPCs | Yes | Writes only through security-definer RPCs; tables are SELECT-only to users |
+| AI assistance | Built; off by default; verified locally (0009) | Drafts only; AI provenance and review gates in the database; full usage log; `tests/sql/run.sh` 64/64; no live provider calls yet. See `docs/AI_SETUP.md` |
 | Segregation of duties | Built and verified locally (0008) | No self-decision (except export freeze); compliance stage cannot be removed; exceptions need independent approval. `tests/sql/run.sh`: 29/29 on PostgreSQL 16; live-backend run pending |
 | Immutability of approved/in-review | Yes | Lock triggers apply to every role, tested with the service key |
 | Security linter | 1 info (intentional locked `platform_admins`) and 30 warnings for RPCs meant to be callable (each checks role itself) | `supabase linter` |
@@ -19,6 +20,10 @@ Status: **not release-ready**. The core scope is incomplete (compliance library,
 | Compliance gate | Built, not yet verified against the backend | Open blocker findings block review request and approval (triggers in `0007`); `compliance.db.ts` covers it |
 
 ## Open risks
+- **AI hosting decision pending:** where the model may run and what data may leave the university (PDPL/SDAIA). AI stays off until `AI_ENABLED=true` and a key are set.
+- AI output quality (Arabic register, outcome quality, references) is untested with real users; plan a pilot and watch the unchanged-acceptance rate.
+- Course Studio and architecture AI insertions are accepted by the person who inserts them; only briefs keep a persistent AI label in the database.
+- No owner yet for the institutional glossary.
 - Migration 0008 turned all existing documented exceptions to *pending*; a compliance reviewer must approve them before they can be used again.
 - Single-owner projects need a second approver for stage 1 (brief confirmation) under the no-self-decision rule.
 - Review routing is still the same six stages for every artifact kind, with one decider per stage; per-kind routes and quorum await a policy decision.

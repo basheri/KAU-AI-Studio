@@ -517,6 +517,7 @@ function LoadedWorkspace({
         readOnly={!editable}
         media={media}
         outcomes={data.outcomes}
+        aiVersionId={versionId}
       />
     </div>
   );

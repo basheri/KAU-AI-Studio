@@ -22,4 +22,4 @@ BEGIN
 END $$;
 GRANT EXECUTE ON FUNCTION public.t_user(text), public.t_as(text), public.t_err(text, text) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.t_eq(anyelement, anyelement, text) TO authenticated, service_role;
-GRANT SELECT ON auth.users TO authenticated;
+GRANT SELECT ON auth.users TO authenticated, service_role;

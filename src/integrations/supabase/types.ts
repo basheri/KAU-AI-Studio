@@ -14,6 +14,95 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_requests: {
+        Row: {
+          created_at: string
+          error: string | null
+          feature: string
+          id: string
+          input_tokens: number
+          model: string
+          outcome: string | null
+          outcome_at: string | null
+          output_tokens: number
+          project_id: string | null
+          provider: string
+          status: string
+          target_ref: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          feature: string
+          id?: string
+          input_tokens?: number
+          model: string
+          outcome?: string | null
+          outcome_at?: string | null
+          output_tokens?: number
+          project_id?: string | null
+          provider: string
+          status: string
+          target_ref?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          feature?: string
+          id?: string
+          input_tokens?: number
+          model?: string
+          outcome?: string | null
+          outcome_at?: string | null
+          output_tokens?: number
+          project_id?: string | null
+          provider?: string
+          status?: string
+          target_ref?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_requests_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      glossary_terms: {
+        Row: {
+          domain: string
+          id: string
+          note: string
+          term_ar: string
+          term_en: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          domain?: string
+          id?: string
+          note?: string
+          term_ar: string
+          term_en: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          domain?: string
+          id?: string
+          note?: string
+          term_ar?: string
+          term_en?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: []
+      }
       arch_elements: {
         Row: {
           artifact_version_id: string
@@ -1894,6 +1983,8 @@ export type Database = {
           extracted_fields: Json
           extracted_text: string | null
           extraction_error: string | null
+          extraction_method: string
+          extraction_request_id: string | null
           extraction_status: string
           file_name: string
           id: string
@@ -1909,6 +2000,8 @@ export type Database = {
           extracted_fields?: Json
           extracted_text?: string | null
           extraction_error?: string | null
+          extraction_method?: string
+          extraction_request_id?: string | null
           extraction_status?: string
           file_name: string
           id?: string
@@ -1924,6 +2017,8 @@ export type Database = {
           extracted_fields?: Json
           extracted_text?: string | null
           extraction_error?: string | null
+          extraction_method?: string
+          extraction_request_id?: string | null
           extraction_status?: string
           file_name?: string
           id?: string
@@ -2134,6 +2229,54 @@ export type Database = {
       }
     }
     Functions: {
+      accept_ai_brief_field: {
+        Args: { _key: string; _version_id: string }
+        Returns: undefined
+      }
+      ai_authorize: {
+        Args: { _actor: string; _project_id: string }
+        Returns: Json
+      }
+      delete_glossary_term: { Args: { _id: string }; Returns: undefined }
+      record_ai_brief_output: {
+        Args: {
+          _actor: string
+          _fields: Json
+          _mode: string
+          _request_id: string
+          _version_id: string
+        }
+        Returns: string[]
+      }
+      record_ai_outcome: {
+        Args: { _outcome: string; _request_id: string }
+        Returns: undefined
+      }
+      record_ai_request: {
+        Args: {
+          _actor: string
+          _error: string
+          _feature: string
+          _input_tokens: number
+          _model: string
+          _output_tokens: number
+          _project_id: string
+          _provider: string
+          _status: string
+          _target_ref: string
+        }
+        Returns: string
+      }
+      save_glossary_term: {
+        Args: {
+          _domain?: string
+          _id: string
+          _note?: string
+          _term_ar: string
+          _term_en: string
+        }
+        Returns: string
+      }
       accept_invitation: { Args: { _invitation_id: string }; Returns: string }
       add_review_comment: {
         Args: {
@@ -2396,6 +2539,8 @@ export type Database = {
           _error: string
           _fields: Json
           _file_id: string
+          _method?: string
+          _request_id?: string
           _status: string
           _text: string
         }
