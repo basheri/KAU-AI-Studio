@@ -103,7 +103,7 @@ describe("project journey", () => {
       architecture: { ...base.architecture!, state: "approved" },
       reviews: { ...base.reviews, approved: 2 },
     };
-    expect(nextStep(done, P).key).toBe("jr.next.done");
+    expect(nextStep(done, P)).toMatchObject({ key: "jr.next.done", to: "/exports" });
     expect(journeySteps(done).every((s) => s.status === "done")).toBe(true);
   });
 

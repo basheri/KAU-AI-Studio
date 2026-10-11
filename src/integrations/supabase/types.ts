@@ -67,6 +67,54 @@ export type Database = {
           },
         ];
       };
+      export_records: {
+        Row: {
+          artifact_version_id: string;
+          byte_size: number;
+          created_at: string;
+          created_by: string;
+          file_name: string;
+          format: Database["public"]["Enums"]["export_format"];
+          id: string;
+          lang: string;
+          official: boolean;
+          project_id: string;
+          sha256: string;
+          target_key: string;
+          version_state: Database["public"]["Enums"]["artifact_state"];
+        };
+        Insert: {
+          artifact_version_id: string;
+          byte_size?: number;
+          created_at?: string;
+          created_by?: string;
+          file_name?: string;
+          format?: Database["public"]["Enums"]["export_format"];
+          id?: string;
+          lang?: string;
+          official?: boolean;
+          project_id?: string;
+          sha256?: string;
+          target_key?: string;
+          version_state?: Database["public"]["Enums"]["artifact_state"];
+        };
+        Update: {
+          artifact_version_id?: string;
+          byte_size?: number;
+          created_at?: string;
+          created_by?: string;
+          file_name?: string;
+          format?: Database["public"]["Enums"]["export_format"];
+          id?: string;
+          lang?: string;
+          official?: boolean;
+          project_id?: string;
+          sha256?: string;
+          target_key?: string;
+          version_state?: Database["public"]["Enums"]["artifact_state"];
+        };
+        Relationships: [];
+      };
       glossary_terms: {
         Row: {
           domain: string;
@@ -2233,6 +2281,25 @@ export type Database = {
       };
       project_journey: { Args: { _project_id: string }; Returns: Json };
       review_readiness: { Args: { _version_id: string }; Returns: Json };
+      export_options: {
+        Args: { _format: Database["public"]["Enums"]["export_format"]; _version_id: string };
+        Returns: Json;
+      };
+      record_export: {
+        Args: {
+          _byte_size: number;
+          _file_name: string;
+          _format: Database["public"]["Enums"]["export_format"];
+          _id: string;
+          _lang: string;
+          _official: boolean;
+          _sha256: string;
+          _target_key: string;
+          _user_id: string;
+          _version_id: string;
+        };
+        Returns: string;
+      };
       accept_ai_brief_field: {
         Args: { _key: string; _version_id: string };
         Returns: undefined;
@@ -2727,6 +2794,7 @@ export type Database = {
       };
     };
     Enums: {
+      export_format: "course_spec_docx" | "program_summary_docx" | "scorm12";
       arch_element_type:
         | "program_outcome"
         | "course"
@@ -2894,6 +2962,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      export_format: ["course_spec_docx", "program_summary_docx", "scorm12"],
       arch_element_type: [
         "program_outcome",
         "course",

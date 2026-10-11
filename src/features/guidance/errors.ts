@@ -24,6 +24,10 @@ const RULES: [RegExp, MessageKey][] = [
   [/Close open reviews before changing the workflow/i, "err.closeReviews"],
   [/today's AI limit/i, "err.aiLimit"],
   [/AI assistance is turned off/i, "err.aiOff"],
+  [/Official exports need an approved version/i, "err.exportApproved"],
+  [/A newer version replaced this one/i, "err.exportReplaced"],
+  [/Observers can export approved versions only/i, "err.exportObserver"],
+  [/This format does not fit this item/i, "err.exportFormat"],
 ];
 
 export function errorMessage(e: unknown): string {

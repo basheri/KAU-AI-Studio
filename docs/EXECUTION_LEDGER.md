@@ -194,3 +194,36 @@ Provider: Claude via the official Anthropic SDK (`claude-opus-5-5` default, adap
 1. Run the usability test in `docs/USABILITY_TEST.md` with 5 users before pilot.
 2. Email notifications after the sender domain is configured.
 3. Autosave: two people editing one draft at once — the last save wins (as in Course Studio).
+
+## Increment 9 — Exports (migration 0011)
+
+### Ruling (options compared)
+| Option | Governance | Value | Ruling |
+|---|---|---|---|
+| A. Export anything at any time, no log | Weak: drafts circulate as if approved | Medium | Rejected |
+| B. **Official exports only from approved versions; watermarked previews for contributors; every file fingerprinted (SHA-256) and logged by the server** | Strong: any copy can be checked against the log | High | **Chosen** |
+| C. Exports only after approval, no previews | Strong | Low: authors cannot check layout before review | Rejected |
+| D. Third-party document service | Data leaves the university | — | Rejected |
+
+### Migration `0011_exports`
+- `export_records` (immutable, members read through RLS, written only by the service role) with format, version state at export, language, file name, SHA-256 and size.
+- `export_problem` (internal): member of the project; format fits the item (Word documents from program architectures, SCORM from course content); not superseded/archived; official ⇒ version `approved` (all stages passed, including the mandatory export freeze); previews not for observers.
+- `export_options` (signed-in user, for the screen) and `record_export` (service role only; re-checks the rules; audited `export.created`).
+
+### Files
+- Course specification (Word), structured after the NCAAA course specification sections A–G: identification, description, objectives, teaching strategies; learning outcomes with aligned program outcomes, teaching strategies and assessment methods; topics with weeks; assessment activities with weights and total; learning resources; quality-assessment and approval tables left for the department.
+- Program summary (Word): overview from the brief, program outcomes, courses, program-outcome × course matrix.
+- SCORM 1.2 package (one SCO): lessons as escaped HTML from the safe rich-text subset, knowledge checks with feedback, scenarios, rubrics, glossary, references, media by https only, embeds only for approved hosts (sandboxed); reports location, incomplete/completed to the LMS and resumes.
+- Arabic documents are right to left (paragraphs, tables, sections); Latin-only text stays left to right. Previews carry "PREVIEW — NOT APPROVED" on every page; every file carries its export reference.
+- Exports screen: per item, official or preview mode with the reason; download; export history; "Check a file" compares a file's fingerprint with the log. Exports is now in the menu; the journey's final step opens it.
+
+### Evidence
+- `tests/sql/run.sh`: migrations 0000–0011 on PostgreSQL 16 — **110/110 checks passed** (23 new for 0011).
+- typecheck clean; lint 0 errors (9 old warnings); unit/screen **130 passed** (25 files; 9 new export builder tests).
+- Generated Arabic and English files opened in LibreOffice (converted to PDF and inspected) and python-docx; SCORM package run in Chromium with a simulated LMS: location and `completed` reported, no script errors.
+- **Not run:** live backend (`bun run test:db`, needs the service key), a real Blackboard import, and the Exports screen signed in.
+
+### Remaining gaps
+1. Import one SCORM package into the university's Blackboard test course before announcing the feature.
+2. Compare the course specification with the current official NCAAA template; adjust section wording if the template has changed.
+3. Media files are linked (https), not packaged; offline SCORM needs media upload and rights approval (Media module).

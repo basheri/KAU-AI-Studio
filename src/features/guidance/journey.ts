@@ -31,7 +31,8 @@ export interface Journey {
 export type StepId =
   "brief" | "architecture" | "specification" | "content" | "compliance" | "review";
 export type StepStatus = "done" | "current" | "attention" | "todo";
-export type Route = "/program-architect" | "/course-studio" | "/compliance" | "/reviews";
+export type Route =
+  "/program-architect" | "/course-studio" | "/compliance" | "/reviews" | "/exports";
 export interface NextStep {
   key: MessageKey;
   to: Route;
@@ -103,7 +104,7 @@ export function nextStep(j: Journey, project: string): NextStep {
       search: { project, artifact: b.state === "draft" ? b.artifact_id : a.artifact_id },
     };
   if (b.state === "approved" && a.state === "approved" && j.reviews.in_review === 0)
-    return { key: k("jr.next.done"), to: "/reviews", search: { project } };
+    return { key: k("jr.next.done"), to: "/exports", search: { project } };
   return { key: k("jr.next.awaitReview"), to: "/reviews", search: { project } };
 }
 

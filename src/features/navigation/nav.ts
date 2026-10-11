@@ -43,13 +43,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: "/compliance", label: "nav.compliance", description: "desc.compliance", icon: ShieldCheck },
   { to: "/reviews", label: "nav.reviews", description: "desc.reviews", icon: MessagesSquare },
   { to: "/media", label: "nav.media", description: "desc.media", icon: Image, hidden: true },
-  {
-    to: "/exports",
-    label: "nav.exports",
-    description: "desc.exports",
-    icon: FileDown,
-    hidden: true,
-  },
+  { to: "/exports", label: "nav.exports", description: "desc.exports", icon: FileDown },
   { to: "/settings", label: "nav.settings", description: "desc.settings", icon: Settings },
 ];
 
