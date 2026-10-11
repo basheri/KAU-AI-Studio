@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { parseFocus, type Focus } from "@/features/navigation/focus";
 import { ModulePage } from "@/components/shell/ModulePage";
 import { OtpSignIn } from "@/features/auth/OtpSignIn";
 import { ReviewWorkspace } from "@/features/reviews/ReviewWorkspace";
@@ -21,11 +22,13 @@ export const Route = createFileRoute("/reviews")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>): Focus => parseFocus(search),
   component: ReviewsPage,
 });
 
 function ReviewsPage() {
   const session = useSession();
+  const focus = Route.useSearch();
   return (
     <ModulePage to="/reviews">
       {session.status === "loading" ? (
@@ -33,7 +36,7 @@ function ReviewsPage() {
       ) : session.status === "signed-out" ? (
         <OtpSignIn />
       ) : (
-        <ReviewWorkspace userId={session.userId} />
+        <ReviewWorkspace key={JSON.stringify(focus)} userId={session.userId} focus={focus} />
       )}
     </ModulePage>
   );

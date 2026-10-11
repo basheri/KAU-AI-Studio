@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { diffLines } from "@/features/reviews/diff";
-import { decisionProblem, editOutcome, ARTIFACT_STATES } from "@/features/reviews/rules";
+import {
+  canDecideException,
+  decisionProblem,
+  editOutcome,
+  selfDecisionBlocked,
+  ARTIFACT_STATES,
+} from "@/features/reviews/rules";
 
 describe("artifact states", () => {
   it("are exactly the six governed states", () => {
@@ -53,5 +59,32 @@ describe("line diff", () => {
   });
   it("handles identical text", () => {
     expect(diffLines("x", "x")).toEqual([{ type: "same", text: "x" }]);
+  });
+});
+
+describe("segregation of duties (mirrors migration 0008)", () => {
+  it("blocks the requester and the version creator except at the export freeze", () => {
+    const base = { userId: "u1", requestedBy: "u2", versionCreatedBy: "u3" };
+    expect(selfDecisionBlocked({ ...base, stageKey: "program_brief_confirmed" })).toBe(false);
+    expect(selfDecisionBlocked({ ...base, requestedBy: "u1", stageKey: "compliance_review" })).toBe(
+      true,
+    );
+    expect(
+      selfDecisionBlocked({ ...base, versionCreatedBy: "u1", stageKey: "learner_content_review" }),
+    ).toBe(true);
+    expect(selfDecisionBlocked({ ...base, requestedBy: "u1", stageKey: "export_frozen" })).toBe(
+      false,
+    );
+  });
+
+  it("lets only another compliance reviewer or administrator decide a pending exception", () => {
+    const ex = { status: "pending" as const, created_by: "u2" };
+    expect(canDecideException(ex, "compliance_reviewer", "u1")).toBe(true);
+    expect(canDecideException(ex, "system_administrator", "u1")).toBe(true);
+    expect(canDecideException(ex, "program_owner", "u1")).toBe(false);
+    expect(canDecideException(ex, "compliance_reviewer", "u2")).toBe(false);
+    expect(canDecideException({ ...ex, status: "approved" }, "compliance_reviewer", "u1")).toBe(
+      false,
+    );
   });
 });

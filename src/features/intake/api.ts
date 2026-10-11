@@ -35,7 +35,7 @@ export const briefQuery = (versionId: string) =>
       const { data, error } = await supabase
         .from("program_briefs")
         .select(
-          "artifact_version_id, artifact_id, intake_mode, category, fields, assumptions_confirmed_at, source_file_id, source_snapshot_id, source_files(file_name, extraction_status, extraction_error), program_source_snapshots(source_label, snapshot)",
+          "artifact_version_id, artifact_id, intake_mode, category, fields, assumptions_confirmed_at, source_file_id, source_snapshot_id, source_files(file_name, extraction_status, extraction_error, extraction_method), program_source_snapshots(source_label, snapshot)",
         )
         .eq("artifact_version_id", versionId)
         .single();
@@ -56,7 +56,7 @@ export const architectureQuery = (versionId: string) =>
           .single(),
         supabase
           .from("arch_elements")
-          .select("id, element_type, parent_id, code, label_ar, label_en")
+          .select("id, element_type, parent_id, code, label_ar, label_en, details")
           .eq("artifact_version_id", versionId)
           .order("position"),
         supabase
@@ -73,6 +73,9 @@ export const architectureQuery = (versionId: string) =>
         code: e.code,
         label_ar: e.label_ar,
         label_en: e.label_en,
+        ...(e.details && Object.keys(e.details as object).length
+          ? { details: e.details as NonNullable<ArchElement["details"]> }
+          : {}),
       }));
       const mappings: ArchMapping[] = (maps.data ?? []).map((m) => ({
         from: m.from_id,

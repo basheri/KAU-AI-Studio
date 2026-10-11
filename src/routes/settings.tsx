@@ -4,6 +4,8 @@ import { ModulePage } from "@/components/shell/ModulePage";
 import { useLocale } from "@/features/i18n/LocaleProvider";
 import { LOCALES } from "@/features/i18n/locale";
 import { getSystemStatus } from "@/features/system/status.functions";
+import { AiStatusCard, AiUsagePanel, GlossaryPanel } from "@/features/ai/AiSettings";
+import { useSession } from "@/features/session/SessionProvider";
 
 const statusQuery = queryOptions({ queryKey: ["system-status"], queryFn: () => getSystemStatus() });
 
@@ -22,6 +24,7 @@ export const Route = createFileRoute("/settings")({
 function SettingsPage() {
   const { t, locale, setLocale } = useLocale();
   const { data } = useQuery(statusQuery);
+  const session = useSession();
   return (
     <ModulePage to="/settings">
       <div className="grid gap-4 md:grid-cols-2">
@@ -46,19 +49,18 @@ function SettingsPage() {
           <h2 className="mb-3 font-semibold">{t("settings.status")}</h2>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between gap-4">
-              <dt className="text-muted-foreground">{t("settings.ai")}</dt>
-              <dd>
-                {data
-                  ? t(data.aiConfigured ? "settings.configured" : "settings.notConfigured")
-                  : "…"}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">{t("settings.integrations")}</dt>
-              <dd>{t("settings.disabled")}</dd>
+              <dd>{data ? t("settings.disabled") : "…"}</dd>
             </div>
           </dl>
         </section>
+        <AiStatusCard />
+        {session.status === "signed-in" && (
+          <>
+            <GlossaryPanel userId={session.userId} />
+            <AiUsagePanel userId={session.userId} />
+          </>
+        )}
       </div>
     </ModulePage>
   );

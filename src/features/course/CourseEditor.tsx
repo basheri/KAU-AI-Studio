@@ -15,6 +15,7 @@ import type { MediaRecord } from "./api";
 import { BLOCK_TYPES, emptyPayload, type BlockType, type Lang } from "./blocks";
 import { BlockFields } from "./BlockFields";
 import { LearnerPreview } from "./LearnerPreview";
+import { LessonAi } from "@/features/ai/LessonAi";
 import {
   contentDefects,
   duplicateBlock,
@@ -161,12 +162,15 @@ export function CourseEditor({
   readOnly,
   media,
   outcomes,
+  aiVersionId,
 }: {
   tree: CourseTree;
   onChange: (t: CourseTree) => void;
   readOnly: boolean;
   media: MediaRecord[];
   outcomes: { code: string; label: string }[];
+  /** Course content version used for AI assistance; omitted where AI is not offered. */
+  aiVersionId?: string;
 }) {
   const { t } = useLocale();
   const [mode, setMode] = useState<"author" | "preview">("author");
@@ -502,6 +506,21 @@ export function CourseEditor({
                         {t("cs.addBlock")}
                       </button>
                     </div>
+                  )}
+                  {!readOnly && aiVersionId && (
+                    <LessonAi
+                      key={selLesson.key}
+                      versionId={aiVersionId}
+                      lesson={selLesson}
+                      outcomes={outcomes}
+                      media={media}
+                      setBlocks={(fn) =>
+                        updLesson(selModule.key, selLesson.key, (x) => ({
+                          ...x,
+                          blocks: fn(x.blocks),
+                        }))
+                      }
+                    />
                   )}
                 </>
               ) : (

@@ -15,16 +15,18 @@ import {
   type CourseData,
 } from "./api";
 import { CourseEditor } from "./CourseEditor";
+import type { Focus } from "@/features/navigation/focus";
+import { friendlyError } from "@/features/guidance/errors";
 import type { CourseTree } from "./tree";
 
 const k = (s: string) => s as MessageKey;
 const errText = (e: unknown) =>
   e && typeof e === "object" && "message" in e ? String((e as { message: string }).message) : "";
 
-export function CourseStudio({ userId }: { userId: string }) {
+export function CourseStudio({ userId, focus = {} }: { userId: string; focus?: Focus }) {
   const { t } = useLocale();
   const projects = useQuery(myProjectsQuery(userId));
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(focus.project ?? "");
   const project = projects.data?.find((p) => p.id === projectId) ?? projects.data?.[0];
   if (projects.isLoading)
     return (
@@ -143,7 +145,7 @@ function CreateCourse({
           </button>
           {create.isError && (
             <p role="alert" className="text-sm text-destructive">
-              {errText(create.error) || t("rv.failed")}
+              {friendlyError(create.error, t)}
             </p>
           )}
         </>
@@ -236,7 +238,7 @@ function MediaPanel({ projectId, canContribute }: { projectId: string; canContri
           </button>
           {(invalid || add.isError) && (
             <p role="alert" className="text-sm text-destructive">
-              {invalid ? t("cs.mediaInvalid") : errText(add.error) || t("rv.failed")}
+              {invalid ? t("cs.mediaInvalid") : friendlyError(add.error, t)}
             </p>
           )}
         </div>
@@ -409,9 +411,9 @@ function LoadedWorkspace({
       qc.invalidateQueries({ queryKey: ["structured-artifacts", projectId] });
     } catch (e) {
       setState("error");
-      setError(errText(e));
+      setError(friendlyError(e, t));
     }
-  }, [versionId, qc, projectId]);
+  }, [versionId, qc, projectId, t]);
 
   const onChange = (next: CourseTree) => {
     setTree(next);
@@ -508,7 +510,7 @@ function LoadedWorkspace({
       )}
       {revise.isError && (
         <p role="alert" className="text-sm text-destructive">
-          {errText(revise.error) || t("rv.failed")}
+          {friendlyError(revise.error, t)}
         </p>
       )}
       <CourseEditor
@@ -517,6 +519,7 @@ function LoadedWorkspace({
         readOnly={!editable}
         media={media}
         outcomes={data.outcomes}
+        aiVersionId={versionId}
       />
     </div>
   );

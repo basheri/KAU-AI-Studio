@@ -156,7 +156,6 @@
   }
 }
 
-
 @layer components {
   .app-sidebar {
     @apply fixed inset-y-0 start-0 z-40 w-72 shrink-0 border-e border-sidebar-border bg-sidebar text-sidebar-foreground transition-transform;
@@ -207,32 +206,102 @@
   .state-badge {
     @apply inline-flex shrink-0 items-center rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground;
   }
-  .state-badge[data-state="in_review"] { @apply border-secondary text-secondary; }
-  .state-badge[data-state="changes_requested"] { @apply border-destructive text-destructive; }
-  .state-badge[data-state="approved"] { @apply border-primary bg-primary text-primary-foreground; }
+  .state-badge[data-state="in_review"] {
+    @apply border-secondary text-secondary;
+  }
+  .state-badge[data-state="changes_requested"] {
+    @apply border-destructive text-destructive;
+  }
+  .state-badge[data-state="approved"] {
+    @apply border-primary bg-primary text-primary-foreground;
+  }
   .stage-pill {
     @apply rounded-md border border-border px-3 py-2 text-sm;
   }
-  .stage-pill[aria-current="step"] { @apply border-primary bg-accent; }
+  .stage-pill[aria-current="step"] {
+    @apply border-primary bg-accent;
+  }
   .diff-view {
     @apply overflow-x-auto rounded-md border border-border bg-muted/40 p-3 font-mono text-sm leading-6;
   }
-  .diff-line { @apply flex gap-2 whitespace-pre-wrap px-1; }
-  .diff-line[data-type="added"] { @apply bg-secondary/15; }
-  .diff-line[data-type="removed"] { @apply bg-destructive/10; }
-  .diff-line ins, .diff-line del { text-decoration: none; }
-  .diff-mark { @apply w-3 shrink-0 select-none text-muted-foreground; }
+  .diff-line {
+    @apply flex gap-2 whitespace-pre-wrap px-1;
+  }
+  .diff-line[data-type="added"] {
+    @apply bg-secondary/15;
+  }
+  .diff-line[data-type="removed"] {
+    @apply bg-destructive/10;
+  }
+  .diff-line ins,
+  .diff-line del {
+    text-decoration: none;
+  }
+  .diff-mark {
+    @apply w-3 shrink-0 select-none text-muted-foreground;
+  }
 }
 
 @layer components {
   .choice-card {
     @apply flex cursor-pointer items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm transition-colors hover:bg-muted focus-within:border-ring;
   }
-  .choice-card-active { @apply border-primary bg-accent; }
-  .prov-badge { @apply rounded-full border border-border px-2 py-0.5 text-xs font-normal text-muted-foreground; }
-  .prov-badge[data-prov="extracted"] { @apply border-secondary text-secondary; }
-  .prov-badge[data-prov="imported"] { @apply border-primary text-primary; }
-  .notice { @apply rounded-md border px-3 py-2 text-sm; }
-  .notice-ok { @apply border-secondary bg-secondary/10; }
-  .notice-warn { @apply border-destructive/50 bg-destructive/5; }
+  .choice-card-active {
+    @apply border-primary bg-accent;
+  }
+  .prov-badge {
+    @apply rounded-full border border-border px-2 py-0.5 text-xs font-normal text-muted-foreground;
+  }
+  .prov-badge[data-prov="extracted"] {
+    @apply border-secondary text-secondary;
+  }
+  .prov-badge[data-prov="imported"] {
+    @apply border-primary text-primary;
+  }
+  .notice {
+    @apply rounded-md border px-3 py-2 text-sm;
+  }
+  .notice-ok {
+    @apply border-secondary bg-secondary/10;
+  }
+  .notice-warn {
+    @apply border-destructive/50 bg-destructive/5;
+  }
+}
+
+@layer components {
+  .ai-panel {
+    @apply rounded-md border border-dashed border-primary/40 bg-accent/30 p-3;
+  }
+  .ai-badge {
+    @apply inline-flex items-center gap-1 rounded-full border border-primary/40 px-2 py-0.5 text-xs font-normal text-primary;
+  }
+  .ai-badge[data-kind="accepted"],
+  .ai-badge[data-kind="translationAccepted"] {
+    @apply border-border text-muted-foreground;
+  }
+  .ai-suggestion {
+    @apply rounded-md border border-border bg-card p-3 text-sm;
+  }
+}
+
+@layer components {
+  .journey {
+    @apply flex flex-wrap gap-2;
+  }
+  .journey-step {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs;
+  }
+  .journey-step[data-status="done"] {
+    @apply border-secondary text-secondary;
+  }
+  .journey-step[data-status="current"] {
+    @apply border-primary text-primary;
+  }
+  .journey-step[data-status="attention"] {
+    @apply border-destructive text-destructive;
+  }
+  .journey-step[data-status="todo"] {
+    @apply text-muted-foreground;
+  }
 }

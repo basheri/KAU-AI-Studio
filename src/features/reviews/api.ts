@@ -110,7 +110,9 @@ export const exceptionsQuery = (projectId: string) =>
     queryFn: async () => {
       const { data, error } = await supabase
         .from("documented_exceptions")
-        .select("id, reference, title, justification, artifact_id, created_at")
+        .select(
+          "id, reference, title, justification, artifact_id, created_at, created_by, status, decided_by, decided_at, decision_comment",
+        )
         .eq("project_id", projectId)
         .order("created_at");
       if (error) throw error;
@@ -199,5 +201,14 @@ export const createException = (
       _title: title,
       _justification: justification,
       _artifact_id: artifactId as string, // null = project-wide exception
+    }),
+  );
+
+export const decideException = (exceptionId: string, approve: boolean, comment: string) =>
+  rpc(
+    supabase.rpc("decide_exception", {
+      _exception_id: exceptionId,
+      _approve: approve,
+      ...(comment.trim() ? { _comment: comment } : {}),
     }),
   );

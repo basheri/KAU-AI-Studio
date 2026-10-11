@@ -15,7 +15,7 @@ import { LocaleProvider } from "@/features/i18n/LocaleProvider";
 import { AppShell } from "@/components/shell/AppShell";
 import { SessionProvider, signOut, useSession } from "@/features/session/SessionProvider";
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
+import { reportError } from "../lib/error-reporting";
 
 function NotFoundComponent() {
   return (
@@ -43,7 +43,7 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error(error);
   const router = useRouter();
   useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    reportError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
   return (

@@ -1,14 +1,7 @@
-<!-- LOVABLE:BEGIN -->
 > [!IMPORTANT]
-> This project is connected to [Lovable](https://lovable.dev). Avoid rewriting
-> published git history — force pushing, or rebasing/amending/squashing commits
-> that are already pushed — as it rewrites history on Lovable's side and the
-> user will likely lose their project history.
->
-> Commits you push to the connected branch sync back to Lovable and show up in
-> the editor, so keep the branch in a working state.
-<!-- LOVABLE:END -->
-
+> The project is self-hosted (no Lovable): a Node server built by Vite/TanStack Start and a Supabase backend.
+> Do not rewrite published git history (no force pushing, rebasing or amending pushed commits).
+> Keep the default branch deployable: `bun run build` and `bun run db:migrate` must succeed. See docs/DEPLOYMENT.md.
 ## Project rules
 - UI strings live in `src/features/i18n/locale.ts` typed dictionaries; Arabic is default/RTL — why: Arabic-first university product.
 - Navigation sections come only from `NAV_ITEMS` in `src/features/navigation/nav.ts` — why: one source for shell, dashboard and tests.
@@ -31,3 +24,18 @@
 - Course content is a structured artifact (`course_contents` → `course_nodes` → `content_blocks`) saved whole-tree by `save_course_content`; course identity comes from the architecture `course` element — why: one versioning/review model and no duplicate course identities.
 - Block payload schemas live in `public.validate_block_payload` and are mirrored in `src/features/course/blocks.ts`; content defects live in `public.course_content_defects`, mirrored in `src/features/course/tree.ts`; change both together — why: database is authoritative, the client gives live hints.
 - Learner content is rendered only as React text from a parsed safe subset; never use `dangerouslySetInnerHTML`; embeds render only for `approved_embed_hosts()` in a sandboxed iframe — why: no arbitrary HTML/scripts.
+- Compliance rules live in migration `0007` (`source_status_on`, `rule_applies`, `transition_finding`, …) and are mirrored in `src/features/compliance/rules.ts` for UI hints only; change both together — why: the database gate is authoritative.
+- Compliance runs and finding events are immutable, and a blocker finding closes only by a later passing run or an approved exception with a comment — why: an auditable compliance trail.
+- Segregation of duties is enforced by triggers in migration `0008`: no decision by the review requester or version creator (except `export_frozen`), `compliance_review` and a final `export_frozen` stage are mandatory, and documented exceptions need approval by a compliance reviewer other than their creator; mirrored in `src/features/reviews/rules.ts` — why: auditable independent review.
+- `tests/sql/run.sh` verifies migrations on plain PostgreSQL without backend keys; extend it with each security migration — why: verification evidence even where the live backend is unavailable.
+- AI calls go only through `src/features/ai/ai.functions.ts` (or `extract.functions.ts`) → `runAi` (contributor check, daily limit, `ai_requests` log); output is schema-validated; AI is off unless `AI_ENABLED=true` and a key exist — why: governed, auditable AI with no client-side keys.
+- AI never decides or overwrites: brief AI text keeps `AI_draft`/`AI_translation` provenance until accepted and blocks review; elsewhere AI output is a suggestion a person inserts; course references stay unverified until ticked and block review — why: people stay accountable for content.
+- Course specification lives in the architecture `course` element `details.spec`, validated by `public.course_spec_problem` and mirrored in `src/features/architecture/spec.ts`; change both together — why: database is authoritative.
+- `public.review_readiness` (migration `0010`) must list every database review gate; add a check there whenever a gate is added — why: the pre-flight checklist must not tell users a version is ready when the database will refuse it.
+- Navigation items that are not built yet carry `hidden: true` in `NAV_ITEMS`; screens are deep-linked only with `?project=&artifact=&tab=&item=` parsed by `src/features/navigation/focus.ts` — why: one validated linking scheme for My work and the journey tracker.
+- Draft editors autosave through `useAutosave`; locked versions keep the explicit "propose a new version" action — why: no lost work, and no silent new versions.
+- Exports are built only in `src/features/exports/exports.functions.ts`: content read as the user, file fingerprinted, logged by the service-role `record_export` (migration `0011`) before it is returned; official exports only from `approved` versions, previews watermarked — why: every circulating file is traceable and drafts never pass as approved.
+- Export documents escape all text and use only the safe rich-text subset; SCORM embeds follow `embedSrc` — why: exported packages must be as safe as the learner preview.
+- Database changes are new numbered files in `drizzle/migrations/`, applied by `scripts/migrate.sh` (`bun run db:migrate`), which records each file's SHA-256 and refuses edited files; never edit an applied migration — why: every environment gets the same, auditable schema.
+- Everything the backend needs (buckets, policies, functions) is created by migrations, never by hand in a console — why: a fresh backend must be reproducible (0012 adds the bucket that was once created by hand).
+- The build is vendor-neutral (`vite.config.ts`, Nitro `node-server` preset, `Dockerfile`); public values are `VITE_*` build arguments, secrets are runtime environment only — why: portable hosting with no secrets in images or browser code.

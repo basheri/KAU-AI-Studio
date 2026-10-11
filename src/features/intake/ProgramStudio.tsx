@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { Focus } from "@/features/navigation/focus";
 import { useQuery } from "@tanstack/react-query";
 import { useLocale } from "@/features/i18n/LocaleProvider";
 import type { MessageKey } from "@/features/i18n/locale";
@@ -10,10 +11,10 @@ import { IntakeForm } from "./IntakeForm";
 
 const k = (s: string) => s as MessageKey;
 
-export function ProgramStudio({ userId }: { userId: string }) {
+export function ProgramStudio({ userId, focus = {} }: { userId: string; focus?: Focus }) {
   const { t } = useLocale();
   const projects = useQuery(myProjectsQuery(userId));
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(focus.project ?? "");
   const project = projects.data?.find((p) => p.id === projectId) ?? projects.data?.[0];
   if (projects.isLoading)
     return (
@@ -48,7 +49,11 @@ export function ProgramStudio({ userId }: { userId: string }) {
           ))}
         </select>
       </div>
-      <ProjectStudio key={project.id} project={project} />
+      <ProjectStudio
+        key={project.id}
+        project={project}
+        artifactId={project.id === focus.project ? focus.artifact : undefined}
+      />
     </div>
   );
 }
@@ -86,10 +91,18 @@ function ArtifactList({
   );
 }
 
-function ProjectStudio({ project }: { project: MyProject }) {
+function ProjectStudio({
+  project,
+  artifactId,
+}: {
+  project: MyProject;
+  artifactId?: string | undefined;
+}) {
   const { t } = useLocale();
   const items = useQuery(structuredArtifactsQuery(project.id));
-  const [selected, setSelected] = useState<{ id: string } | { versionId: string } | null>(null);
+  const [selected, setSelected] = useState<{ id: string } | { versionId: string } | null>(
+    artifactId ? { id: artifactId } : null,
+  );
   const canContribute = project.role !== "observer";
   const all = items.data ?? [];
   const briefs = all.filter((a) => a.kind === "program_brief");

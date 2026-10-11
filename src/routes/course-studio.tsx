@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { parseFocus, type Focus } from "@/features/navigation/focus";
 import { ModulePage } from "@/components/shell/ModulePage";
 import { OtpSignIn } from "@/features/auth/OtpSignIn";
 import { CourseStudio } from "@/features/course/CourseStudio";
@@ -18,11 +19,13 @@ export const Route = createFileRoute("/course-studio")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>): Focus => parseFocus(search),
   component: CourseStudioPage,
 });
 
 function CourseStudioPage() {
   const session = useSession();
+  const focus = Route.useSearch();
   return (
     <ModulePage to="/course-studio">
       {session.status === "loading" ? (
@@ -32,7 +35,7 @@ function CourseStudioPage() {
       ) : session.status === "signed-out" ? (
         <OtpSignIn />
       ) : (
-        <CourseStudio userId={session.userId} />
+        <CourseStudio key={JSON.stringify(focus)} userId={session.userId} focus={focus} />
       )}
     </ModulePage>
   );

@@ -23,7 +23,7 @@ describe("canonical brief model", () => {
       "professional_program",
     ]);
     expect(INTAKE_MODES).toEqual(["guided_idea", "document_upload", "redevelopment"]);
-    expect(PROVENANCE).toEqual(["manual", "extracted", "imported", "AI_draft"]);
+    expect(PROVENANCE).toEqual(["manual", "extracted", "imported", "AI_draft", "AI_accepted"]);
   });
   it("normalizes to every canonical field with bilingual slots and provenance", () => {
     const f = normalizeBriefFields({ title: { en: "Data Science", provenance: "manual" } });

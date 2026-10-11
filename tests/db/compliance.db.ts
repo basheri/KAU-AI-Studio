@@ -281,10 +281,7 @@ describe("compliance library", () => {
     const r3 = await draftRule(`DEMO-EXPEV-${run}`, {}, ev(exp.data!.id));
     expect((await activate(r3)).error?.message).toMatch(/active, effective source/);
     // Even the service role cannot force an unsupported rule to active.
-    const forced = await admin
-      .from("compliance_rules")
-      .update({ status: "active" })
-      .eq("id", r3);
+    const forced = await admin.from("compliance_rules").update({ status: "active" }).eq("id", r3);
     expect(forced.error?.message).toMatch(/active, effective source/);
 
     const good = await activeSource({ official_identifier: `DEMO-GOOD-${run}` });
@@ -295,7 +292,13 @@ describe("compliance library", () => {
     expect(
       (await owner().rpc("set_compliance_rule_status", { _rule_id: r5, _to: "active" })).error,
     ).not.toBeNull();
-    await ok(reviewer().rpc("set_compliance_rule_status", { _rule_id: r4, _to: "retired", _comment: "cleanup" }));
+    await ok(
+      reviewer().rpc("set_compliance_rule_status", {
+        _rule_id: r4,
+        _to: "retired",
+        _comment: "cleanup",
+      }),
+    );
   });
 
   it("evaluates applicability across category, delivery, credit, language, kind and dates", async () => {
@@ -369,17 +372,23 @@ describe("compliance library", () => {
 
     expect((await runOn(users.observer.client)).error).not.toBeNull();
     expect(
-      (await owner().rpc("run_compliance", {
-        _version_id: briefVersion,
-        _ruleset_id: rulesetId,
-        _context: { ...CTX, delivery_mode: "" },
-      })).error?.message,
+      (
+        await owner().rpc("run_compliance", {
+          _version_id: briefVersion,
+          _ruleset_id: rulesetId,
+          _context: { ...CTX, delivery_mode: "" },
+        })
+      ).error?.message,
     ).toMatch(/delivery mode/i);
     firstRun = (await ok(runOn(owner()))) as string;
     const r = (await ok(
       owner().from("compliance_runs").select("*").eq("id", firstRun).single(),
     )) as any;
-    expect(r.context).toMatchObject({ category: "academic_program", artifact_kind: "program_brief", ...CTX });
+    expect(r.context).toMatchObject({
+      category: "academic_program",
+      artifact_kind: "program_brief",
+      ...CTX,
+    });
     const byCode = Object.fromEntries(r.snapshot.results.map((x: any) => [x.rule_code, x]));
     expect(byCode[`DEMO-BIL-${run}`].outcome).toBe("fail");
     expect(byCode[`DEMO-BIL-${run}`].observed).toBe("en");
@@ -447,7 +456,9 @@ describe("compliance library", () => {
         _fields: { official_version: "2.0", title_en: "[DEMO] Revised policy" },
       }),
     )) as string;
-    await ok(owner().rpc("transition_compliance_source", { _source_id: nsrc, _to: "under_review" }));
+    await ok(
+      owner().rpc("transition_compliance_source", { _source_id: nsrc, _to: "under_review" }),
+    );
     await ok(
       reviewer().rpc("transition_compliance_source", {
         _source_id: nsrc,
@@ -459,7 +470,9 @@ describe("compliance library", () => {
       owner().from("compliance_sources").select("status").eq("id", src).single(),
     )) as any;
     expect(old.status).toBe("superseded");
-    const nrule = (await ok(owner().rpc("revise_compliance_rule", { _rule_id: rule.id }))) as string;
+    const nrule = (await ok(
+      owner().rpc("revise_compliance_rule", { _rule_id: rule.id }),
+    )) as string;
     await ok(
       owner().rpc("save_compliance_rule", {
         _ruleset_id: rulesetId,
@@ -505,24 +518,30 @@ describe("compliance library", () => {
     for (const c of [out, users.observer.client]) {
       expect((await runOn(c)).error).not.toBeNull();
       expect(
-        (await c.rpc("transition_finding", {
-          _finding_id: blockerFinding,
-          _to: "acknowledged",
-        })).error,
+        (
+          await c.rpc("transition_finding", {
+            _finding_id: blockerFinding,
+            _to: "acknowledged",
+          })
+        ).error,
       ).not.toBeNull();
       expect(
-        (await c.rpc("save_compliance_source", {
-          _project_id: projectId,
-          _source_id: null,
-          _fields: sourceFields({ official_identifier: "X" }),
-        })).error,
+        (
+          await c.rpc("save_compliance_source", {
+            _project_id: projectId,
+            _source_id: null,
+            _fields: sourceFields({ official_identifier: "X" }),
+          })
+        ).error,
       ).not.toBeNull();
       expect(
-        (await c.rpc("assign_finding", {
-          _finding_id: blockerFinding,
-          _assignee: users.reviewer.id,
-          _due: null,
-        })).error,
+        (
+          await c.rpc("assign_finding", {
+            _finding_id: blockerFinding,
+            _assignee: users.reviewer.id,
+            _due: null,
+          })
+        ).error,
       ).not.toBeNull();
       expect(
         (await c.rpc("comment_finding", { _finding_id: blockerFinding, _body: "hi" })).error,
@@ -533,11 +552,13 @@ describe("compliance library", () => {
       expect(ins.error, t).not.toBeNull();
     }
     expect(
-      (await owner().rpc("record_source_checksum", {
-        _source_id: crypto.randomUUID(),
-        _computed: "b".repeat(64),
-        _actor: users.owner.id,
-      })).error,
+      (
+        await owner().rpc("record_source_checksum", {
+          _source_id: crypto.randomUUID(),
+          _computed: "b".repeat(64),
+          _actor: users.owner.id,
+        })
+      ).error,
     ).not.toBeNull();
   });
 
@@ -549,7 +570,9 @@ describe("compliance library", () => {
         _due: shift(7),
       }),
     );
-    await ok(owner().rpc("transition_finding", { _finding_id: blockerFinding, _to: "acknowledged" }));
+    await ok(
+      owner().rpc("transition_finding", { _finding_id: blockerFinding, _to: "acknowledged" }),
+    );
     await ok(
       reviewer().rpc("transition_finding", {
         _finding_id: blockerFinding,
@@ -568,11 +591,13 @@ describe("compliance library", () => {
       /later compliance run/,
     );
     expect(
-      (await reviewer().rpc("transition_finding", {
-        _finding_id: blockerFinding,
-        _to: "false_positive",
-        _comment: "nah",
-      })).error?.message,
+      (
+        await reviewer().rpc("transition_finding", {
+          _finding_id: blockerFinding,
+          _to: "false_positive",
+          _comment: "nah",
+        })
+      ).error?.message,
     ).toMatch(/false positive/);
     const stillFailing = (await ok(runOn(owner()))) as string;
     expect(
@@ -595,12 +620,18 @@ describe("compliance library", () => {
     const f = (await ok(
       owner().from("compliance_findings").select("*").eq("id", blockerFinding).single(),
     )) as any;
-    expect(f).toMatchObject({ status: "resolved", verified_run_id: passing, closed_by: users.reviewer.id });
+    expect(f).toMatchObject({
+      status: "resolved",
+      verified_run_id: passing,
+      closed_by: users.reviewer.id,
+    });
     expect(
-      (await reviewer().rpc("transition_finding", {
-        _finding_id: blockerFinding,
-        _to: "acknowledged",
-      })).error?.message,
+      (
+        await reviewer().rpc("transition_finding", {
+          _finding_id: blockerFinding,
+          _to: "acknowledged",
+        })
+      ).error?.message,
     ).toMatch(/closed/);
     const events = (await ok(
       owner()
@@ -610,7 +641,10 @@ describe("compliance library", () => {
         .order("created_at"),
     )) as any[];
     expect(events.map((e) => e.kind)).toEqual(["assign", "status", "status", "comment", "status"]);
-    expect(events.at(-1)).toMatchObject({ to_status: "resolved", actor_role: "compliance_reviewer" });
+    expect(events.at(-1)).toMatchObject({
+      to_status: "resolved",
+      actor_role: "compliance_reviewer",
+    });
 
     // Manual blockers: approved exception path.
     const manual = (await ok(
@@ -622,11 +656,13 @@ describe("compliance library", () => {
         .single(),
     )) as any;
     expect(
-      (await reviewer().rpc("transition_finding", {
-        _finding_id: manual.id,
-        _to: "accepted_exception",
-        _comment: "approved",
-      })).error?.message,
+      (
+        await reviewer().rpc("transition_finding", {
+          _finding_id: manual.id,
+          _to: "accepted_exception",
+          _comment: "approved",
+        })
+      ).error?.message,
     ).toMatch(/exception and a comment/);
     const exc = (await ok(
       owner().rpc("create_exception", {
@@ -636,6 +672,24 @@ describe("compliance library", () => {
         _justification: "Test-only waiver",
       }),
     )) as string;
+    // A pending exception cannot close a finding; another compliance reviewer must approve it first.
+    expect(
+      (
+        await reviewer().rpc("transition_finding", {
+          _finding_id: manual.id,
+          _to: "accepted_exception",
+          _comment: "Waiver approved by committee",
+          _exception_id: exc,
+        })
+      ).error?.message,
+    ).toMatch(/not been approved/);
+    await ok(
+      reviewer().rpc("decide_exception", {
+        _exception_id: exc,
+        _approve: true,
+        _comment: "Committee minutes checked",
+      }),
+    );
     await ok(
       reviewer().rpc("transition_finding", {
         _finding_id: manual.id,
@@ -662,9 +716,11 @@ describe("compliance library", () => {
 
   it("records an audit event for every compliance mutation", async () => {
     const actions = new Set(
-      ((await ok(
-        owner().from("audit_events").select("action").eq("project_id", projectId),
-      )) as any[]).map((a) => a.action),
+      (
+        (await ok(
+          owner().from("audit_events").select("action").eq("project_id", projectId),
+        )) as any[]
+      ).map((a) => a.action),
     );
     for (const a of [
       "compliance.source.saved",

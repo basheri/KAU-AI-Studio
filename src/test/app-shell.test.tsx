@@ -47,7 +47,7 @@ describe("signed-out app shell", () => {
   it("renders navigation, signed-out status and Arabic RTL by default", async () => {
     renderShell();
     const nav = await screen.findByRole("navigation", { name: "التنقل الرئيسي" });
-    expect(nav.querySelectorAll("a")).toHaveLength(9);
+    expect(nav.querySelectorAll("a")).toHaveLength(8); // Media stays hidden until built
     expect(screen.getByTestId("session-status")).toHaveAttribute("data-status", "signed-out");
     expect(document.documentElement).toHaveAttribute("dir", "rtl");
     expect(document.documentElement).toHaveAttribute("lang", "ar");

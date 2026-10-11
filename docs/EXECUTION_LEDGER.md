@@ -67,3 +67,192 @@ Critical: missing_title, missing_language, no_lessons, empty_payload, invalid_he
 
 ### Remaining highest-value gap
 Real media upload and the media-rights workflow (records currently hold an https source and a rights note), then the versioned compliance library.
+
+## Increment 6 — Compliance Library (database layer + UI; database tests pending a run)
+
+### Architecture ruling
+Project-scoped, versioned compliance sources and rules; immutable runs with a frozen snapshot; findings with an append-only event log. Same pattern as earlier increments: tables are SELECT-only to members, every write goes through an audited security-definer RPC that checks the project role, and lock triggers apply to every role (including the service role).
+
+### Migrations
+- `0007_compliance_library`: enums `compliance_source_status` (6), `compliance_rule_status`, `rule_severity`, `rule_check_type`, `finding_status`; tables `compliance_sources`, `compliance_rulesets`, `compliance_rules`, `compliance_rule_evidence`, `compliance_runs`, `compliance_findings`, `compliance_finding_events` (member-only SELECT RLS, no client write grants); view `compliance_sources_current` (`security_invoker`, computes expiry by date); triggers: source/rule freeze after draft, rule activation needs an active in-date source, evidence frozen for non-draft rules, runs and finding events immutable, blocker-closure invariants on findings, review request/approval gate on open blockers; RPCs `save/revise/transition_compliance_source`, `record_source_checksum` (service role only), `save_compliance_ruleset`, `save/revise_compliance_rule`, `set_compliance_rule_status`, `run_compliance`, `assign_finding`, `comment_finding`, `transition_finding`, `compliance_readiness` — all audited.
+
+### UI (this change)
+- `/compliance` now hosts the Compliance Library (`src/features/compliance/ComplianceLibrary.tsx`): Sources (create/edit draft, submit, approve, reject with comment, withdraw, revise), Rules (rulesets, draft rules with automated check, applicability, dates and cited evidence; activate, retire with comment, revise), Run check (target version, ruleset, program context; frozen run results), Findings board (open / in progress / closed) with detail: evidence, assignment, comments, status changes that ask up front for the comment, approved exception or verification run the database requires, and history.
+- Client mirror for live hints only: `src/features/compliance/rules.ts` (source status by date, applicability, form checks, allowed finding transitions per role). The database stays authoritative.
+- Arabic (default, RTL) and English strings in `locale.ts` (`cl.*`, plus `kind.course_content`).
+
+### TDD evidence
+- RED: `compliance-rules.test.ts` failed (module missing) before `rules.ts` existed.
+- GREEN (this change):
+  - typecheck: clean
+  - lint: 0 errors, 9 old warnings (was 49 errors: formatting in `tests/db/compliance.db.ts`, fixed)
+  - unit/screen: 12 files, **73 passed** (63 existing + 4 mirror + 6 compliance screen)
+  - build: succeeds
+- **Not run in this change:** `bun run test:db` (8 compliance database tests in `tests/db/compliance.db.ts`) and the browser suite. Both need the backend keys (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`), which this build environment does not have. Run them before treating compliance as verified.
+
+### Remaining highest-value gap
+1. Run `bun run test:db` against the backend and record the result here.
+2. Browser scenario for compliance (needs two throwaway users: owner + compliance reviewer), including the 390-wide phone check.
+3. Then media upload and the media-rights workflow.
+
+## Increment 6b — Review segregation of duties (migration 0008)
+
+### Why
+A governance review found that a program owner could remove the compliance stage, that whoever submitted or wrote a version could approve it, and that any contributor could create the exception used to approve their own work.
+
+### Ruling (options compared)
+| Option | Control strength | Workflow impact | Ruling |
+|---|---|---|---|
+| A. Policy only ("owners must not…") | None in the database | None | Rejected: contradicts "database is authoritative" |
+| B. **Database triggers + RPC checks** | Holds for every role, including the service role | Single-owner projects need a second approver for stage 1 | **Chosen** |
+| C. Full redesign (quorum, per-kind routes) | Strongest | Large | Deferred: needs a policy decision on routes per artifact kind |
+
+### Migration `0008_review_segregation_of_duties`
+- **Protected stages:** every project keeps an active `compliance_review` stage, decided only by `compliance_reviewer` / `system_administrator`, and `export_frozen` as its last stage. Enforced in `save_workflow_stages` and by trigger `workflow_stages_protected`. Existing projects were repaired in the migration: missing or deactivated protected stages are re-activated (compliance before export), and widened compliance approvers are reset to `compliance_reviewer`.
+- **No self-decision:** trigger `review_decisions_segregation` refuses a decision by the review requester or the version's creator. `export_frozen` is exempt because it is an administrative freeze after independent stages.
+- **Exception approval:** `documented_exceptions.status` (`pending` → `approved` / `rejected`, final). New RPC `decide_exception` (compliance reviewer or system administrator, never the creator; rejection needs a comment; audited `exception.approved` / `exception.rejected`). Exceptions are otherwise immutable. `approve_exception` decisions and `accepted_exception` findings require an approved exception. **Existing exceptions became `pending`** and need approval before reuse.
+- UI: the Reviews screen explains when you cannot decide your own work, offers only approved exceptions, and gives compliance reviewers an exceptions panel to approve or reject. Compliance findings offer only approved exceptions. Client mirror: `selfDecisionBlocked`, `canDecideException` in `src/features/reviews/rules.ts`.
+
+### TDD evidence
+- RED: new mirror tests in `review-rules.test.ts` failed before the rules existed.
+- **Local database run (new, key-free):** `bash tests/sql/run.sh` applies migrations 0000–0008 to a fresh PostgreSQL 16 database with Supabase stand-ins, acts as six throwaway users through the real functions and row-level security, and checks repair of two pre-existing weakened projects. **29/29 checks passed.** A mutation check (guard trigger removed) made the self-decision check fail as expected.
+- All migrations 0000–0007 also apply cleanly to that local database.
+- typecheck clean; lint 0 errors (9 old warnings); unit/screen **75 passed**; build succeeds.
+- `tests/db/reviews.db.ts` and `tests/db/compliance.db.ts` were updated for the new rules (second program owner, instructional designer approver, exception approval, protected stages, forged self-decision). **They have not been run against the live backend yet** (no keys in this environment).
+
+### Consequences to manage
+- A project with a single program owner cannot confirm a brief that owner wrote and submitted. Add a second program owner, or give stage 1 an additional approver role.
+- Edits made in place to a draft by a contributor other than its creator do not block that contributor from deciding; only the requester and the creator are blocked.
+
+## Increment 7 — AI assistance under human control (migration 0009)
+
+### Architecture ruling (options compared)
+| Option | Governance | Data control | Value | Ruling |
+|---|---|---|---|---|
+| A. General chat assistant on every screen | Weak: output bypasses structured fields and provenance | Hard to scope | Demo value | Rejected |
+| B. **Feature-specific drafting through one governed server gateway; schema-validated output; suggestions a person inserts; persistent AI provenance on briefs; review gates** | Strong | Off by default, explicit switch, per-user daily limit, full log | High | **Chosen** |
+| C. AI pre-screening reviews / auto-scoring compliance | Undermines independent human judgement (0008) | — | — | Rejected |
+
+Provider: Claude via the official Anthropic SDK (`claude-opus-5-5` default, adaptive thinking, per-feature effort, server-side refusal fallback `fallbacks: "default"`), behind a provider interface (`src/features/ai/gateway.ts`) so a Saudi-hosted or university-hosted model can be added without changing features. Every response is validated against a Zod schema before use.
+
+### Migration `0009_ai_assistance`
+- `ai_requests` usage log (service-role writes via `record_ai_request`, audited `ai.request`; immutable except a one-time `outcome` set by the requester through `record_ai_outcome`); `ai_authorize` (contributors only + today's count).
+- `glossary_terms` (readable by all signed-in users; `save_glossary_term` / `delete_glossary_term` platform-admin only, audited).
+- Brief provenance: `AI_draft` → `AI_accepted`; per-language `ar_prov`/`en_prov` `AI_translation` → `AI_translation_accepted`. `record_ai_brief_output` (service role) only fills empty fields or the empty language; `accept_ai_brief_field` (contributors); `brief_apply_manual` keeps the other language's AI label when one language is edited.
+- Source files: `extraction_method` (`deterministic`|`ai`) and `extraction_request_id`; `record_source_extraction` gains `_method`/`_request_id`; `create_program_brief` labels AI-read fields `AI_draft` with `#p<page>` in `source_ref`.
+- Course specification on the architecture `course` element (`details.spec`), validated by trigger (`course_spec_problem`, mirrored in `src/features/architecture/spec.ts`).
+- Review gate `gate_ai_review`: blocks review while a brief has unaccepted AI text or an architecture has unverified course references.
+
+### Features (by phase)
+1. Briefs: draft empty fields from an idea; translate missing languages; Arabic–English consistency check; DOCX read deterministically (`src/features/intake/docx.ts`), PDF (and unlabelled text) read by AI with page numbers.
+2. Architecture: suggest program outcomes; explain alignment defects; translate missing labels; course specification panel (description, credit hours, prerequisites, teaching strategies, objectives, topics with weeks and outcome coverage, assessment weights, references with "verified"); AI chain for description, objectives, learning outcomes (inserted as course-outcome elements mapped to program outcomes), topics, assessments (inserted as assessment elements mapped to outcomes, with weights), references (inserted unverified). Deterministic outcome wording checks (vague verbs, compound outcomes) without AI.
+3. Course Studio: draft text blocks (validated by `parsePayload`), translated copies placed after originals, alt-text suggestions, learner clarity check.
+4. Compliance: draft rules from a PDF source citing clause and page, saved only as drafts. Reviews: change summary and discussion summary (not stored).
+- Settings: AI status, institutional glossary (admin-edited), 30-day usage with an "unchanged acceptance" warning. The old status row that reported `LOVABLE_API_KEY` as "AI configured" was removed.
+
+### TDD evidence
+- RED observed: `docx-text.test.ts`, `course-spec.test.ts` (modules missing). Other new tests were written alongside their modules.
+- Local database run `bash tests/sql/run.sh`: migrations 0000–0009 on PostgreSQL 16 — **64/64 checks passed** (29 from 0008 + 35 for 0009: authorisation, logging immutability, daily count, no-overwrite drafting/translation, per-language provenance after manual edit, acceptance, review gate, outcome feedback, AI-read PDF provenance with page, glossary admin-only and audited, course specification validation, reference gate).
+- typecheck clean; lint 0 errors (9 old warnings); unit/screen **110 passed** (21 files; 35 new: engine 9, gate 3, DOCX 2, spec 6, block text 3, brief UI 4, spec UI 3, lesson UI 2, phase-4 UI 3); build succeeds.
+- Client bundle checked: no API key name, no provider address; the AI SDK is server-only.
+- **Not run:** live calls to the AI provider (no key here) and `bun run test:db` (no backend keys). Prompts and schemas are unit-tested; real output quality must be checked in a pilot.
+
+### Remaining highest-value gap
+1. Pilot with real users once hosting is decided; measure acceptance/edit/discard rates per feature.
+2. Run `bun run test:db` and a browser scenario for the AI flows against the live backend.
+3. Institutional glossary content (owner to be named).
+
+## Increment 8 — Guidance and ease of use (migration 0010)
+
+### Ruling (options compared)
+| Option | Effort | Value for occasional users | Ruling |
+|---|---|---|---|
+| A. Help pages and tooltips only | Low | Low: users still have to know the order of steps | Rejected |
+| B. **Database-computed guidance: "My work" list, per-program journey with one next step, review-readiness checklist mirroring every review gate; autosave; plain errors** | Medium | High: the system says what to do next and why review is blocked | **Chosen** |
+| C. Wizard that forces one linear path | High | Medium: breaks parallel work and revisions | Rejected |
+| D. Email notifications now | Low code, needs sender-domain configuration | Medium | Deferred (in-app "My work" count serves as notification) |
+
+### Migration `0010_guidance`
+- `my_work()`: items waiting on the caller across their projects — reviews to decide (excluding self-decision cases per 0008), assigned open findings, exceptions to approve, sources to approve, draft rules to activate, AI brief text to accept, returned versions to revise.
+- `project_journey(project_id)`: brief / architecture / courses / compliance / review counts for the journey tracker.
+- `review_readiness(version_id)`: one check per database review gate (draft, no other open review, assumptions, AI acceptance, linked brief, elements, alignment, verified references, critical content defects, compliance blockers, independent approver for the first stage). All three are read-only security-definer functions filtered to the caller's memberships.
+
+### Screens
+- Home: "My work" (with Open deep links), "My programs" journey tracker (six steps, one "Go" button), sections. Menu shows a My-work count.
+- Deep links: `?project=&artifact=&tab=&item=` on Program Architect, Course Studio, Reviews, Compliance (`src/features/navigation/focus.ts`, UUID-validated).
+- Reviews: readiness checklist above "Request review", each failed item with a Fix link; button disabled until ready.
+- Brief and architecture drafts autosave (1.5 s debounce, one save at a time; locked versions keep "Propose a new version"). Brief fields in three collapsible groups. Optional idea at guided brief creation drafts the remaining fields with AI (when AI is on).
+- Plain bilingual error messages (`src/features/guidance/errors.ts`) replace "Something went wrong" for actions.
+- Media and Exports hidden from navigation (`hidden: true` in `NAV_ITEMS`) until built.
+
+### Evidence
+- `tests/sql/run.sh`: migrations 0000–0010 on PostgreSQL 16 — **87/87 checks passed** (23 new for 0010: membership filtering, self-decision exclusion, each readiness check, independent approver).
+- typecheck clean; lint 0 errors (9 old warnings); unit/screen **121 passed** (24 files; new: journey 7, friendly errors 2, architecture form 2); build succeeds.
+- **Not run:** live backend (`bun run test:db`) and browser scenario for the new screens.
+
+### Remaining gaps
+1. Run the usability test in `docs/USABILITY_TEST.md` with 5 users before pilot.
+2. Email notifications after the sender domain is configured.
+3. Autosave: two people editing one draft at once — the last save wins (as in Course Studio).
+
+## Increment 9 — Exports (migration 0011)
+
+### Ruling (options compared)
+| Option | Governance | Value | Ruling |
+|---|---|---|---|
+| A. Export anything at any time, no log | Weak: drafts circulate as if approved | Medium | Rejected |
+| B. **Official exports only from approved versions; watermarked previews for contributors; every file fingerprinted (SHA-256) and logged by the server** | Strong: any copy can be checked against the log | High | **Chosen** |
+| C. Exports only after approval, no previews | Strong | Low: authors cannot check layout before review | Rejected |
+| D. Third-party document service | Data leaves the university | — | Rejected |
+
+### Migration `0011_exports`
+- `export_records` (immutable, members read through RLS, written only by the service role) with format, version state at export, language, file name, SHA-256 and size.
+- `export_problem` (internal): member of the project; format fits the item (Word documents from program architectures, SCORM from course content); not superseded/archived; official ⇒ version `approved` (all stages passed, including the mandatory export freeze); previews not for observers.
+- `export_options` (signed-in user, for the screen) and `record_export` (service role only; re-checks the rules; audited `export.created`).
+
+### Files
+- Course specification (Word), structured after the NCAAA course specification sections A–G: identification, description, objectives, teaching strategies; learning outcomes with aligned program outcomes, teaching strategies and assessment methods; topics with weeks; assessment activities with weights and total; learning resources; quality-assessment and approval tables left for the department.
+- Program summary (Word): overview from the brief, program outcomes, courses, program-outcome × course matrix.
+- SCORM 1.2 package (one SCO): lessons as escaped HTML from the safe rich-text subset, knowledge checks with feedback, scenarios, rubrics, glossary, references, media by https only, embeds only for approved hosts (sandboxed); reports location, incomplete/completed to the LMS and resumes.
+- Arabic documents are right to left (paragraphs, tables, sections); Latin-only text stays left to right. Previews carry "PREVIEW — NOT APPROVED" on every page; every file carries its export reference.
+- Exports screen: per item, official or preview mode with the reason; download; export history; "Check a file" compares a file's fingerprint with the log. Exports is now in the menu; the journey's final step opens it.
+
+### Evidence
+- `tests/sql/run.sh`: migrations 0000–0011 on PostgreSQL 16 — **110/110 checks passed** (23 new for 0011).
+- typecheck clean; lint 0 errors (9 old warnings); unit/screen **130 passed** (25 files; 9 new export builder tests).
+- Generated Arabic and English files opened in LibreOffice (converted to PDF and inspected) and python-docx; SCORM package run in Chromium with a simulated LMS: location and `completed` reported, no script errors.
+- **Not run:** live backend (`bun run test:db`, needs the service key), a real Blackboard import, and the Exports screen signed in.
+
+### Remaining gaps
+1. Import one SCORM package into the university's Blackboard test course before announcing the feature.
+2. Compare the course specification with the current official NCAAA template; adjust section wording if the template has changed.
+3. Media files are linked (https), not packaged; offline SCORM needs media upload and rights approval (Media module).
+
+## Increment 10 — Leaving Lovable: vendor-neutral build and self-hosting (migration 0012)
+
+### Ruling (options compared)
+| Option | Effort | Control | Ruling |
+|---|---|---|---|
+| A. Stay on Lovable Cloud and hosting | None | Vendor holds data and hosting; residency unanswered | Rejected (owner decision) |
+| B. **Standard build + Node server container + any Supabase backend (self-hosted for production), scripted migrations** | Low in code; backend set-up by IT | Full | **Chosen** |
+| C. Rewrite on another stack | High | Full | Rejected: the code was already portable |
+
+### Changes
+- `vite.config.ts`: standard plugins (TanStack Start with server-only import protection, React, Tailwind, path aliases); Nitro `node-server` preset by default (`NITRO_PRESET` to change). `@lovable.dev/vite-tanstack-config` removed.
+- Removed the Lovable editor add-ons: preview login brokering (sessions now use normal browser storage) and Lovable error telemetry (replaced by `src/lib/error-reporting.ts`, one hook for a future monitoring service). `.lovable/` removed; error messages point to docs/DEPLOYMENT.md.
+- `bun.lock` downloads from the public npm registry instead of Lovable's private mirror (same integrity hashes); clean install verified.
+- `scripts/migrate.sh` (`bun run db:migrate`, `db:status`, `--baseline`): ordered, one transaction per file, records name + SHA-256 in `app_meta.applied_migrations`, refuses edited applied files.
+- Migration `0012_storage_bucket`: the private `project-sources` bucket (10 MB; PDF, DOCX, TXT, MD), previously created by hand in the hosting console, so a fresh backend is complete.
+- `Dockerfile` (two stages, non-root, health check; public values as build arguments, secrets at run time), `.dockerignore`, `.env.example`, `docs/DEPLOYMENT.md`. E2E scripts derive the session key from the configured backend instead of a hard-coded project id.
+
+### Evidence
+- Migration runner on a blank database: 13 applied; second run 0 applied; edited file refused; `--baseline 0010` on a copy applied only the rest.
+- `tests/sql/run.sh`: 0000–0012 — **111/111 checks passed** (bucket created, private, idempotent).
+- `docker build` succeeded; container served `/` and `/exports` with 200, running as the `node` user. (In this environment base images came from a public mirror and the build trusted the sandbox proxy certificate; the committed Dockerfile is unchanged.)
+- Standalone `node .output/server/index.mjs`: pages 200, unknown route 404.
+- typecheck clean; lint 0 errors; unit/screen tests and build: see commit.
+
+### Remaining
+1. IT: provision the backend (self-hosted Supabase recommended for production), SMTP sender, HTTPS front end, backups.
+2. Run `bun run test:db` and the E2E scripts against the new backend.
+3. Disconnect the Lovable GitHub link after the new system passes its checks; rotate keys that were stored in Lovable.

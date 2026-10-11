@@ -16,6 +16,12 @@ export interface ArchElement {
   code: string;
   label_ar: string;
   label_en: string;
+  /** Extra data kept with the element: course specification (details.spec) or assessment weight. */
+  details?: ElementDetails;
+}
+export interface ElementDetails {
+  spec?: import("./spec").CourseSpec;
+  weight?: number;
 }
 export interface ArchMapping {
   from: string;

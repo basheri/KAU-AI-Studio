@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { CheckCircle2, CircleAlert } from "lucide-react";
 import { useLocale } from "@/features/i18n/LocaleProvider";
 import type { MessageKey } from "@/features/i18n/locale";
 import { myProjectsQuery, type MyProject } from "@/features/projects/api";
@@ -9,6 +11,7 @@ import {
   assignReviewer,
   createArtifact,
   createException,
+  decideException,
   decideReview,
   editArtifact,
   exceptionsQuery,
@@ -22,12 +25,19 @@ import {
 } from "./api";
 import {
   ARTIFACT_KINDS,
+  canDecideException,
   decisionProblem,
   editOutcome,
+  selfDecisionBlocked,
   type ArtifactKind,
   type DecisionKind,
 } from "./rules";
 import { diffLines } from "./diff";
+import { friendlyError } from "@/features/guidance/errors";
+import { readinessQuery } from "@/features/guidance/api";
+import { readinessFix } from "@/features/guidance/journey";
+import type { Focus } from "@/features/navigation/focus";
+import { ReviewAi } from "@/features/ai/ReviewAi";
 
 const k = (s: string) => s as MessageKey;
 
@@ -36,13 +46,69 @@ function useInvalidateAll() {
   return () => void qc.invalidateQueries();
 }
 
-function ErrorNote({ show }: { show: boolean }) {
+function ErrorNote({ error }: { error: unknown }) {
   const { t } = useLocale();
-  return show ? (
+  return error ? (
     <p role="alert" className="text-sm text-destructive">
-      {t("rv.failed")}
+      {friendlyError(error, t)}
     </p>
   ) : null;
+}
+
+/** Pre-flight list mirroring the database review gates (review_readiness); the database stays authoritative. */
+function ReadinessList({
+  projectId,
+  artifactId,
+  versionId,
+}: {
+  projectId: string;
+  artifactId: string;
+  versionId: string;
+}) {
+  const { t, locale } = useLocale();
+  const q = useQuery(readinessQuery(versionId));
+  if (q.isError) return <ErrorNote error={q.error} />;
+  if (!q.data) return null;
+  return (
+    <div className="space-y-2" aria-labelledby="rd-title">
+      <h3 id="rd-title" className="text-sm font-semibold">
+        {t("rd.title")}
+      </h3>
+      <ul className="space-y-1 text-sm">
+        {q.data.checks.map((c) => {
+          const fix = c.ok ? null : readinessFix(c.check, projectId, artifactId);
+          const stage = locale === "ar" ? c.stage_ar : c.stage_en;
+          return (
+            <li key={c.check} className="flex flex-wrap items-center gap-2">
+              {c.ok ? (
+                <CheckCircle2 aria-hidden className="size-4 text-secondary" />
+              ) : (
+                <CircleAlert aria-hidden className="size-4 text-destructive" />
+              )}
+              <span className="sr-only">{c.ok ? t("rd.ok") : t("rd.missing")}</span>
+              <span>
+                {t(k(`rd.check.${c.check}`))}
+                {!c.ok && c.count ? ` (${c.count})` : ""}
+              </span>
+              {fix && (
+                <Link to={fix.to} search={fix.search} className="btn-link">
+                  {t("rd.fix")}
+                </Link>
+              )}
+              {!c.ok && c.check === "independent_approver" && stage && (
+                <span className="w-full text-muted-foreground">
+                  {t("rd.approverHint")} <span dir="auto">{stage}</span>
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <p role="status" className={q.data.ready ? "text-sm text-secondary" : "text-sm"}>
+        {q.data.ready ? t("rd.ready") : t("rd.notReady")}
+      </p>
+    </div>
+  );
 }
 
 function StateBadge({ state }: { state: Version["state"] }) {
@@ -54,10 +120,10 @@ function StateBadge({ state }: { state: Version["state"] }) {
   );
 }
 
-export function ReviewWorkspace({ userId }: { userId: string }) {
+export function ReviewWorkspace({ userId, focus = {} }: { userId: string; focus?: Focus }) {
   const { t } = useLocale();
   const projects = useQuery(myProjectsQuery(userId));
-  const [projectId, setProjectId] = useState<string>("");
+  const [projectId, setProjectId] = useState<string>(focus.project ?? "");
   const project = projects.data?.find((p) => p.id === projectId) ?? projects.data?.[0];
 
   if (projects.isLoading) return <p className="text-muted-foreground">…</p>;
@@ -83,16 +149,29 @@ export function ReviewWorkspace({ userId }: { userId: string }) {
           ))}
         </select>
       </div>
-      <ProjectReviews key={project.id} project={project} userId={userId} />
+      <ProjectReviews
+        key={project.id}
+        project={project}
+        userId={userId}
+        artifactId={project.id === focus.project ? focus.artifact : undefined}
+      />
     </div>
   );
 }
 
-function ProjectReviews({ project, userId }: { project: MyProject; userId: string }) {
+function ProjectReviews({
+  project,
+  userId,
+  artifactId: initialArtifact,
+}: {
+  project: MyProject;
+  userId: string;
+  artifactId?: string | undefined;
+}) {
   const { t, locale } = useLocale();
   const stages = useQuery(stagesQuery(project.id));
   const artifacts = useQuery(artifactsQuery(project.id));
-  const [artifactId, setArtifactId] = useState<string | null>(null);
+  const [artifactId, setArtifactId] = useState<string | null>(initialArtifact ?? null);
   const selected = artifacts.data?.find((a) => a.id === artifactId) ?? artifacts.data?.[0] ?? null;
   const canContribute = project.role !== "observer";
 
@@ -254,7 +333,7 @@ function NewArtifact({
             onChange={(e) => setContent(e.target.value)}
           />
         </div>
-        <ErrorNote show={m.isError} />
+        <ErrorNote error={m.error} />
         <button className="btn-primary" disabled={m.isPending || !title.trim()}>
           {t("rv.create")}
         </button>
@@ -412,7 +491,7 @@ function VersionEditor({
                 onChange={(e) => setSummary(e.target.value)}
               />
             </div>
-            <ErrorNote show={m.isError} />
+            <ErrorNote error={m.error} />
             <button
               className="btn-primary"
               disabled={m.isPending || (outcome === "child" && content === version.content)}
@@ -491,11 +570,22 @@ function ReviewPanel({
   const canContribute = project.role !== "observer";
   const open = review.data?.requests.find((r) => r.status === "open");
   const openStage = stages.find((s) => s.id === open?.stage_id);
-  const canDecide = !!openStage && openStage.approver_roles.includes(project.role);
+  const roleCanDecide = !!openStage && openStage.approver_roles.includes(project.role);
+  const selfBlocked =
+    !!open &&
+    !!openStage &&
+    selfDecisionBlocked({
+      stageKey: openStage.stage_key,
+      userId,
+      requestedBy: open.requested_by,
+      versionCreatedBy: version.created_by,
+    });
+  const canDecide = roleCanDecide && !selfBlocked;
 
   // Request review
   const [note, setNote] = useState("");
   const [assignees, setAssignees] = useState<string[]>([]);
+  const readiness = useQuery({ ...readinessQuery(version.id), enabled: version.state === "draft" });
   const req = useMutation({
     mutationFn: () => requestReview(version.id, note, assignees),
     onSuccess: refresh,
@@ -536,16 +626,16 @@ function ReviewPanel({
   const [exJust, setExJust] = useState("");
   const addEx = useMutation({
     mutationFn: () => createException(project.id, artifactId, exTitle, exJust),
-    onSuccess: (id) => {
+    onSuccess: () => {
       setExTitle("");
       setExJust("");
-      setExceptionId(id);
       refresh();
     },
   });
   const projectExceptions = (exceptions.data ?? []).filter(
     (x) => !x.artifact_id || x.artifact_id === artifactId,
   );
+  const approvedExceptions = projectExceptions.filter((x) => x.status === "approved");
   const exRef = (id: string | null) => exceptions.data?.find((x) => x.id === id)?.reference;
 
   return (
@@ -555,6 +645,9 @@ function ReviewPanel({
           <h2 id="rv-request" className="mb-3 font-semibold">
             {t("rv.requestReview")}
           </h2>
+          <div className="mb-4">
+            <ReadinessList projectId={project.id} artifactId={artifactId} versionId={version.id} />
+          </div>
           <form
             className="space-y-3"
             onSubmit={(e) => {
@@ -578,8 +671,11 @@ function ReviewPanel({
               <legend className="field-label">{t("rv.assignees")}</legend>
               <MemberChecks id="rq-a" members={members} value={assignees} onChange={setAssignees} />
             </fieldset>
-            <ErrorNote show={req.isError} />
-            <button className="btn-primary" disabled={req.isPending}>
+            <ErrorNote error={req.error} />
+            <button
+              className="btn-primary"
+              disabled={req.isPending || readiness.data?.ready === false}
+            >
               {t("rv.requestReview")}
             </button>
           </form>
@@ -627,7 +723,7 @@ function ReviewPanel({
               <button className="chip-btn" disabled={!assignee || assign.isPending}>
                 {t("rv.assign")}
               </button>
-              <ErrorNote show={assign.isError} />
+              <ErrorNote error={assign.error} />
             </form>
           )}
 
@@ -676,7 +772,7 @@ function ReviewPanel({
                   onChange={(e) => setExceptionId(e.target.value)}
                 >
                   <option value="">{t("rv.none")}</option>
-                  {projectExceptions.map((x) => (
+                  {approvedExceptions.map((x) => (
                     <option key={x.id} value={x.id}>
                       {x.reference} — {x.title}
                     </option>
@@ -690,13 +786,15 @@ function ReviewPanel({
                     ? t("rv.exceptionRequired")
                     : ""}
               </p>
-              <ErrorNote show={decide.isError} />
+              <ErrorNote error={decide.error} />
               <button className="btn-primary" disabled={decide.isPending}>
                 {t("rv.decide")}
               </button>
             </form>
           ) : (
-            <p className="text-sm text-muted-foreground">{t("rv.cannotDecide")}</p>
+            <p className="text-sm text-muted-foreground">
+              {roleCanDecide && selfBlocked ? t("rv.selfDecision") : t("rv.cannotDecide")}
+            </p>
           )}
 
           {canContribute && (
@@ -733,7 +831,8 @@ function ReviewPanel({
                     onChange={(e) => setExJust(e.target.value)}
                   />
                 </div>
-                <ErrorNote show={addEx.isError} />
+                <p className="text-xs text-muted-foreground">{t("rv.exceptionPending")}</p>
+                <ErrorNote error={addEx.error} />
                 <button
                   className="chip-btn"
                   disabled={addEx.isPending || !exTitle.trim() || !exJust.trim()}
@@ -772,6 +871,20 @@ function ReviewPanel({
         )}
       </section>
 
+      {canContribute && (
+        <section className="surface-card p-5" aria-label={t("ai.label")}>
+          <ReviewAi versionId={version.id} parentVersionId={version.parent_version_id} />
+        </section>
+      )}
+
+      <ExceptionsPanel
+        exceptions={projectExceptions}
+        project={project}
+        userId={userId}
+        emailOf={emailOf}
+        onChange={refresh}
+      />
+
       <CommentThread
         versionId={version.id}
         canContribute={canContribute}
@@ -782,6 +895,140 @@ function ReviewPanel({
         mentions={review.data?.mentions ?? []}
       />
     </>
+  );
+}
+
+type DocumentedException = NonNullable<
+  Awaited<ReturnType<NonNullable<ReturnType<typeof exceptionsQuery>["queryFn"]>>>
+>[number];
+
+function ExceptionsPanel({
+  exceptions,
+  project,
+  userId,
+  emailOf,
+  onChange,
+}: {
+  exceptions: DocumentedException[];
+  project: MyProject;
+  userId: string;
+  emailOf: (id: string) => string;
+  onChange: () => void;
+}) {
+  const { t } = useLocale();
+  return (
+    <section className="surface-card p-5" aria-labelledby="rv-exceptions">
+      <h2 id="rv-exceptions" className="mb-3 font-semibold">
+        {t("rv.exceptions")}
+      </h2>
+      {exceptions.length ? (
+        <ul className="space-y-3">
+          {exceptions.map((x) => (
+            <ExceptionItem
+              key={x.id}
+              exception={x}
+              canDecide={canDecideException(x, project.role, userId)}
+              emailOf={emailOf}
+              onChange={onChange}
+            />
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">{t("rv.noExceptions")}</p>
+      )}
+    </section>
+  );
+}
+
+function ExceptionItem({
+  exception: x,
+  canDecide,
+  emailOf,
+  onChange,
+}: {
+  exception: DocumentedException;
+  canDecide: boolean;
+  emailOf: (id: string) => string;
+  onChange: () => void;
+}) {
+  const { t } = useLocale();
+  const [comment, setComment] = useState("");
+  const [needComment, setNeedComment] = useState(false);
+  const decide = useMutation({
+    mutationFn: (approve: boolean) => decideException(x.id, approve, comment),
+    onSuccess: () => {
+      setComment("");
+      onChange();
+    },
+  });
+  const reject = () => {
+    setNeedComment(!comment.trim());
+    if (comment.trim()) decide.mutate(false);
+  };
+  return (
+    <li className="rounded-md border border-border p-3 text-sm">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <p className="font-medium">
+          {x.reference} — {x.title}
+        </p>
+        <span
+          className="state-badge"
+          data-state={
+            x.status === "approved"
+              ? "approved"
+              : x.status === "rejected"
+                ? "changes_requested"
+                : "in_review"
+          }
+        >
+          {t(k(`rv.exStatus.${x.status}`))}
+        </span>
+      </div>
+      <p className="mt-1">{x.justification}</p>
+      <p className="mt-1 text-muted-foreground">
+        {emailOf(x.created_by)}
+        {x.decided_by && (
+          <>
+            {" "}
+            · {t(k(`rv.exStatus.${x.status}`))}: {emailOf(x.decided_by)}
+          </>
+        )}
+      </p>
+      {x.decision_comment && <p className="mt-1">{x.decision_comment}</p>}
+      {canDecide && (
+        <div className="mt-2 flex flex-wrap items-end gap-2">
+          <div className="min-w-48 flex-1">
+            <label htmlFor={`exd-${x.id}`} className="field-label">
+              {t("rv.exComment")}
+            </label>
+            <input
+              id={`exd-${x.id}`}
+              className="field-input"
+              maxLength={2000}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={decide.isPending}
+            onClick={() => decide.mutate(true)}
+          >
+            {t("rv.exApprove")}
+          </button>
+          <button type="button" className="chip-btn" disabled={decide.isPending} onClick={reject}>
+            {t("rv.exReject")}
+          </button>
+        </div>
+      )}
+      {needComment && (
+        <p role="alert" className="mt-1 text-destructive">
+          {t("rv.exCommentRequired")}
+        </p>
+      )}
+      <ErrorNote error={decide.error} />
+    </li>
   );
 }
 
@@ -933,7 +1180,7 @@ function CommentForm({
           exclude={userId}
         />
       </fieldset>
-      <ErrorNote show={m.isError} />
+      <ErrorNote error={m.error} />
       <div className="flex gap-2">
         <button className="chip-btn" disabled={m.isPending || !body.trim()}>
           {parentId ? t("rv.reply") : t("rv.post")}

@@ -7,7 +7,9 @@ from playwright.async_api import async_playwright
 BASE = os.environ.get("E2E_BASE_URL", "http://localhost:8080")
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STATE = os.path.join(tempfile.gettempdir(), "e2e_program_studio.json")
-STORAGE_KEY = "sb-lgpmzzyanugnveoaipnj-auth-token"
+# supabase-js keeps the session under sb-<project ref>-auth-token; the ref is the first label of the URL host.
+_SB_URL = os.environ.get("VITE_SUPABASE_URL") or os.environ.get("SUPABASE_URL", "")
+STORAGE_KEY = "sb-" + (_SB_URL.split("//")[-1].split(".")[0] or "local") + "-auth-token"
 
 def helper(cmd):
     env = {**os.environ, "NODE_PATH": os.path.join(ROOT, "node_modules")}
