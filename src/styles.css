@@ -1,0 +1,238 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design system definition.
+ *
+ * The @theme inline block maps CSS custom properties to Tailwind utility
+ * classes (e.g. --color-primary -> bg-primary, text-primary).
+ *
+ * The :root and .dark blocks define the actual color values using oklch.
+ * All colors MUST use oklch format.
+ *
+ * To add a new semantic color:
+ * 1. Add the variable to :root (light value) and .dark (dark value)
+ * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  /* KAU-ready palette: replace with official brand guide values when supplied. */
+  --radius: 0.5rem;
+  --background: oklch(0.985 0.004 230);
+  --foreground: oklch(0.22 0.03 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.03 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.03 250);
+  --primary: oklch(0.42 0.11 250);
+  --primary-foreground: oklch(0.98 0.005 230);
+  --secondary: oklch(0.55 0.09 195);
+  --secondary-foreground: oklch(0.98 0.005 230);
+  --muted: oklch(0.955 0.008 230);
+  --muted-foreground: oklch(0.5 0.025 250);
+  --accent: oklch(0.94 0.03 195);
+  --accent-foreground: oklch(0.35 0.07 200);
+  --destructive: oklch(0.56 0.2 27);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.91 0.01 240);
+  --input: oklch(0.91 0.01 240);
+  --ring: oklch(0.55 0.09 195);
+  --chart-1: oklch(0.42 0.11 250);
+  --chart-2: oklch(0.55 0.09 195);
+  --chart-3: oklch(0.65 0.08 220);
+  --chart-4: oklch(0.75 0.06 180);
+  --chart-5: oklch(0.32 0.07 255);
+  --sidebar: oklch(0.27 0.07 252);
+  --sidebar-foreground: oklch(0.96 0.01 230);
+  --sidebar-primary: oklch(0.72 0.1 195);
+  --sidebar-primary-foreground: oklch(0.2 0.04 250);
+  --sidebar-accent: oklch(0.34 0.07 250);
+  --sidebar-accent-foreground: oklch(0.98 0.005 230);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.72 0.1 195);
+  --font-sans-ar: "IBM Plex Sans Arabic", system-ui, sans-serif;
+  --font-sans-en: "IBM Plex Sans", system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans-ar);
+  }
+  html[lang="en"] body {
+    font-family: var(--font-sans-en);
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:fixed focus:top-2 focus:start-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground;
+  }
+  .brand-mark {
+    @apply size-9 rounded-md border border-sidebar-border bg-sidebar-accent;
+  }
+  .nav-link {
+    @apply flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground;
+  }
+  .nav-link-active {
+    @apply bg-sidebar-accent font-medium text-sidebar-accent-foreground;
+    box-shadow: inset 3px 0 0 var(--sidebar-primary);
+  }
+  [dir="rtl"] .nav-link-active {
+    box-shadow: inset -3px 0 0 var(--sidebar-primary);
+  }
+  .icon-btn {
+    @apply inline-flex size-9 items-center justify-center rounded-md border border-border hover:bg-muted;
+  }
+  .chip-btn {
+    @apply inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted;
+  }
+  .chip-btn-active {
+    @apply border-primary bg-primary text-primary-foreground hover:bg-primary;
+  }
+  .surface-card {
+    @apply rounded-lg border border-border bg-card text-card-foreground;
+  }
+  .surface-card-link {
+    @apply transition-colors hover:border-secondary;
+  }
+  .module-icon {
+    @apply flex size-12 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground;
+  }
+}
+
+
+@layer components {
+  .app-sidebar {
+    @apply fixed inset-y-0 start-0 z-40 w-72 shrink-0 border-e border-sidebar-border bg-sidebar text-sidebar-foreground transition-transform;
+    transform: translateX(-100%);
+  }
+  [dir="rtl"] .app-sidebar {
+    transform: translateX(100%);
+  }
+  .app-sidebar[data-open="true"] {
+    transform: none;
+  }
+  @media (min-width: 64rem) {
+    .app-sidebar,
+    [dir="rtl"] .app-sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      transform: none;
+    }
+  }
+}
+
+@layer components {
+  .field-label {
+    @apply mb-1 block text-sm font-medium;
+  }
+  .field-input {
+    @apply w-full rounded-md border border-input bg-card px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:border-ring;
+  }
+  .field-icon {
+    @apply pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60;
+  }
+  .btn-link {
+    @apply text-sm text-primary underline-offset-4 hover:underline;
+  }
+  .list-item {
+    @apply flex w-full items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-start transition-colors hover:bg-muted;
+  }
+  .list-item-active {
+    @apply border-primary bg-accent;
+  }
+}
+
+@layer components {
+  .state-badge {
+    @apply inline-flex shrink-0 items-center rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground;
+  }
+  .state-badge[data-state="in_review"] { @apply border-secondary text-secondary; }
+  .state-badge[data-state="changes_requested"] { @apply border-destructive text-destructive; }
+  .state-badge[data-state="approved"] { @apply border-primary bg-primary text-primary-foreground; }
+  .stage-pill {
+    @apply rounded-md border border-border px-3 py-2 text-sm;
+  }
+  .stage-pill[aria-current="step"] { @apply border-primary bg-accent; }
+  .diff-view {
+    @apply overflow-x-auto rounded-md border border-border bg-muted/40 p-3 font-mono text-sm leading-6;
+  }
+  .diff-line { @apply flex gap-2 whitespace-pre-wrap px-1; }
+  .diff-line[data-type="added"] { @apply bg-secondary/15; }
+  .diff-line[data-type="removed"] { @apply bg-destructive/10; }
+  .diff-line ins, .diff-line del { text-decoration: none; }
+  .diff-mark { @apply w-3 shrink-0 select-none text-muted-foreground; }
+}
+
+@layer components {
+  .choice-card {
+    @apply flex cursor-pointer items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm transition-colors hover:bg-muted focus-within:border-ring;
+  }
+  .choice-card-active { @apply border-primary bg-accent; }
+  .prov-badge { @apply rounded-full border border-border px-2 py-0.5 text-xs font-normal text-muted-foreground; }
+  .prov-badge[data-prov="extracted"] { @apply border-secondary text-secondary; }
+  .prov-badge[data-prov="imported"] { @apply border-primary text-primary; }
+  .notice { @apply rounded-md border px-3 py-2 text-sm; }
+  .notice-ok { @apply border-secondary bg-secondary/10; }
+  .notice-warn { @apply border-destructive/50 bg-destructive/5; }
+}

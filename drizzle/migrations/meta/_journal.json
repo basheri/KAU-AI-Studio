@@ -1,0 +1,62 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791482165073,
+      "tag": "0000_identity_projects_isolation",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791482888660,
+      "tag": "0001_governed_review_workflow",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791495798876,
+      "tag": "0002_program_intake_brief_alignment",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791496354907,
+      "tag": "0003_revoke_trigger_function_execute",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791496981059,
+      "tag": "0004_course_studio_content",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791497022343,
+      "tag": "0005_artifact_kind_course_content",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791497047492,
+      "tag": "0006_course_heading_levels",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791591103561,
+      "tag": "0007_compliance_library",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { ModulePage } from "@/components/shell/ModulePage";
+import { OtpSignIn } from "@/features/auth/OtpSignIn";
+import { CourseStudio } from "@/features/course/CourseStudio";
+import { useSession } from "@/features/session/SessionProvider";
+
+const DESC =
+  "Author course modules, lesson pages and accessible learner content in KAU AI Program Studio.";
+
+export const Route = createFileRoute("/course-studio")({
+  head: () => ({
+    meta: [
+      { title: "Course Studio — KAU AI Program Studio" },
+      { name: "description", content: DESC },
+      { property: "og:title", content: "Course Studio — KAU AI Program Studio" },
+      { property: "og:description", content: DESC },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  component: CourseStudioPage,
+});
+
+function CourseStudioPage() {
+  const session = useSession();
+  return (
+    <ModulePage to="/course-studio">
+      {session.status === "loading" ? (
+        <p role="status" className="text-muted-foreground">
+          …
+        </p>
+      ) : session.status === "signed-out" ? (
+        <OtpSignIn />
+      ) : (
+        <CourseStudio userId={session.userId} />
+      )}
+    </ModulePage>
+  );
+}

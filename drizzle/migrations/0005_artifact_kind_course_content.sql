@@ -1,0 +1,2 @@
+ALTER TABLE public.artifacts DROP CONSTRAINT artifacts_kind_check;
+ALTER TABLE public.artifacts ADD CONSTRAINT artifacts_kind_check CHECK (kind IN ('program_brief','program_architecture','course_architecture','learner_content','course_content','other'));

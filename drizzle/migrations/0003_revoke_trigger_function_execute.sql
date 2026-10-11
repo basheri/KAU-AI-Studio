@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.audit_row_insert(), public.guard_kau_signup(), public.handle_new_user() FROM PUBLIC, anon, authenticated;
