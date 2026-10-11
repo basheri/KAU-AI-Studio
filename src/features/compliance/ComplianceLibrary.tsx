@@ -6,6 +6,8 @@ import { myProjectsQuery, type MyProject } from "@/features/projects/api";
 import { structuredArtifactsQuery } from "@/features/intake/api";
 import { exceptionsQuery, membersQuery } from "@/features/reviews/api";
 import { RuleDraftAi } from "@/features/ai/ComplianceAi";
+import { friendlyError } from "@/features/guidance/errors";
+import type { Focus } from "@/features/navigation/focus";
 import { BRIEF_FIELDS } from "@/features/intake/brief";
 import { BLOCK_TYPES } from "@/features/course/blocks";
 import { ELEMENT_TYPES } from "@/features/architecture/alignment";
@@ -97,15 +99,15 @@ function ErrorLine({ error }: { error: unknown }) {
   if (!error) return null;
   return (
     <p role="alert" className="text-sm text-destructive">
-      {errText(error) || t("rv.failed")}
+      {friendlyError(error, t)}
     </p>
   );
 }
 
-export function ComplianceLibrary({ userId }: { userId: string }) {
+export function ComplianceLibrary({ userId, focus = {} }: { userId: string; focus?: Focus }) {
   const { t } = useLocale();
   const projects = useQuery(myProjectsQuery(userId));
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(focus.project ?? "");
   const project = projects.data?.find((p) => p.id === projectId) ?? projects.data?.[0];
   if (projects.isLoading)
     return (
@@ -140,14 +142,27 @@ export function ComplianceLibrary({ userId }: { userId: string }) {
           ))}
         </select>
       </div>
-      <ProjectCompliance key={project.id} project={project} userId={userId} />
+      <ProjectCompliance
+        key={project.id}
+        project={project}
+        userId={userId}
+        focus={project.id === focus.project ? focus : {}}
+      />
     </div>
   );
 }
 
-export function ProjectCompliance({ project, userId }: { project: MyProject; userId: string }) {
+export function ProjectCompliance({
+  project,
+  userId,
+  focus = {},
+}: {
+  project: MyProject;
+  userId: string;
+  focus?: Focus;
+}) {
   const { t } = useLocale();
-  const [tab, setTab] = useState<Tab>("sources");
+  const [tab, setTab] = useState<Tab>(focus.tab ?? "sources");
   return (
     <div className="space-y-4">
       <p className="notice notice-ok">{t("cl.demoNote")}</p>
@@ -170,7 +185,9 @@ export function ProjectCompliance({ project, userId }: { project: MyProject; use
       {tab === "sources" && <SourcesPanel project={project} />}
       {tab === "rules" && <RulesPanel project={project} />}
       {tab === "run" && <RunPanel project={project} />}
-      {tab === "findings" && <FindingsPanel project={project} userId={userId} />}
+      {tab === "findings" && (
+        <FindingsPanel project={project} userId={userId} initial={focus.item} />
+      )}
     </div>
   );
 }
@@ -1304,11 +1321,19 @@ const COLUMNS: { key: string; statuses: FindingStatus[] }[] = [
   { key: "closed", statuses: [...CLOSED_FINDING] },
 ];
 
-function FindingsPanel({ project, userId }: { project: MyProject; userId: string }) {
+function FindingsPanel({
+  project,
+  userId,
+  initial,
+}: {
+  project: MyProject;
+  userId: string;
+  initial?: string | undefined;
+}) {
   const { t } = useLocale();
   const pick = usePick();
   const findings = useQuery(findingsQuery(project.id));
-  const [sel, setSel] = useState<string | null>(null);
+  const [sel, setSel] = useState<string | null>(initial ?? null);
   const current = findings.data?.find((f) => f.id === sel);
   if (findings.isLoading) return <p role="status">…</p>;
   if (findings.isError) return <ErrorLine error={findings.error} />;

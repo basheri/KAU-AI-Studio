@@ -161,3 +161,36 @@ Provider: Claude via the official Anthropic SDK (`claude-opus-5-5` default, adap
 1. Pilot with real users once hosting is decided; measure acceptance/edit/discard rates per feature.
 2. Run `bun run test:db` and a browser scenario for the AI flows against the live backend.
 3. Institutional glossary content (owner to be named).
+
+## Increment 8 — Guidance and ease of use (migration 0010)
+
+### Ruling (options compared)
+| Option | Effort | Value for occasional users | Ruling |
+|---|---|---|---|
+| A. Help pages and tooltips only | Low | Low: users still have to know the order of steps | Rejected |
+| B. **Database-computed guidance: "My work" list, per-program journey with one next step, review-readiness checklist mirroring every review gate; autosave; plain errors** | Medium | High: the system says what to do next and why review is blocked | **Chosen** |
+| C. Wizard that forces one linear path | High | Medium: breaks parallel work and revisions | Rejected |
+| D. Email notifications now | Low code, needs sender-domain configuration | Medium | Deferred (in-app "My work" count serves as notification) |
+
+### Migration `0010_guidance`
+- `my_work()`: items waiting on the caller across their projects — reviews to decide (excluding self-decision cases per 0008), assigned open findings, exceptions to approve, sources to approve, draft rules to activate, AI brief text to accept, returned versions to revise.
+- `project_journey(project_id)`: brief / architecture / courses / compliance / review counts for the journey tracker.
+- `review_readiness(version_id)`: one check per database review gate (draft, no other open review, assumptions, AI acceptance, linked brief, elements, alignment, verified references, critical content defects, compliance blockers, independent approver for the first stage). All three are read-only security-definer functions filtered to the caller's memberships.
+
+### Screens
+- Home: "My work" (with Open deep links), "My programs" journey tracker (six steps, one "Go" button), sections. Menu shows a My-work count.
+- Deep links: `?project=&artifact=&tab=&item=` on Program Architect, Course Studio, Reviews, Compliance (`src/features/navigation/focus.ts`, UUID-validated).
+- Reviews: readiness checklist above "Request review", each failed item with a Fix link; button disabled until ready.
+- Brief and architecture drafts autosave (1.5 s debounce, one save at a time; locked versions keep "Propose a new version"). Brief fields in three collapsible groups. Optional idea at guided brief creation drafts the remaining fields with AI (when AI is on).
+- Plain bilingual error messages (`src/features/guidance/errors.ts`) replace "Something went wrong" for actions.
+- Media and Exports hidden from navigation (`hidden: true` in `NAV_ITEMS`) until built.
+
+### Evidence
+- `tests/sql/run.sh`: migrations 0000–0010 on PostgreSQL 16 — **87/87 checks passed** (23 new for 0010: membership filtering, self-decision exclusion, each readiness check, independent approver).
+- typecheck clean; lint 0 errors (9 old warnings); unit/screen **121 passed** (24 files; new: journey 7, friendly errors 2, architecture form 2); build succeeds.
+- **Not run:** live backend (`bun run test:db`) and browser scenario for the new screens.
+
+### Remaining gaps
+1. Run the usability test in `docs/USABILITY_TEST.md` with 5 users before pilot.
+2. Email notifications after the sender domain is configured.
+3. Autosave: two people editing one draft at once — the last save wins (as in Course Studio).

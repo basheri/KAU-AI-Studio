@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocale } from "@/features/i18n/LocaleProvider";
@@ -11,8 +11,18 @@ import { AiBadge } from "@/features/ai/AiParts";
 import { BriefAiTools } from "@/features/ai/BriefAi";
 import { acceptBriefField, recordAiOutcome } from "@/features/ai/api";
 import { briefAiPending, fieldAiBadges } from "@/features/ai/gate";
+import { friendlyError } from "@/features/guidance/errors";
+import { useAutosave } from "@/features/guidance/useAutosave";
+import { AutosaveStatus } from "@/features/guidance/AutosaveStatus";
 
 const k = (s: string) => s as MessageKey;
+
+/** Brief fields grouped into collapsible sections (category has its own control). */
+const BRIEF_GROUPS = [
+  { id: "basics", keys: ["title", "rationale", "duration_credits"] },
+  { id: "design", keys: ["target_learners", "delivery_mode", "intended_outcomes", "stakeholders"] },
+  { id: "planning", keys: ["assumptions", "required_sources", "risks"] },
+] as const satisfies readonly { id: string; keys: readonly (typeof BRIEF_FIELDS)[number][] }[];
 
 export function VersionChips({
   artifact,
@@ -65,12 +75,43 @@ export function BriefEditor({
   const [fields, setFields] = useState<BriefFields | null>(null);
   const [category, setCategory] = useState<ProgramCategory>("academic_program");
   const [summary, setSummary] = useState("");
+  // Local edits survive a refetch: server data replaces them only when nothing changed since the last load or save.
+  const local = JSON.stringify({ fields, category });
+  const localRef = useRef(local);
   useEffect(() => {
-    if (brief.data) {
+    localRef.current = local;
+  });
+  const base = useRef<{ id: string; json: string } | null>(null);
+  useEffect(() => {
+    if (!brief.data) return;
+    if (!base.current || base.current.id !== version.id || localRef.current === base.current.json) {
       setFields(brief.data.fields);
       setCategory(brief.data.category);
+      base.current = {
+        id: version.id,
+        json: JSON.stringify({ fields: brief.data.fields, category: brief.data.category }),
+      };
     }
-  }, [brief.data]);
+  }, [brief.data, version.id]);
+
+  const outcome = editOutcome(version.state);
+  const dirty =
+    !!brief.data &&
+    !!fields &&
+    (JSON.stringify(fields) !== JSON.stringify(brief.data.fields) ||
+      category !== brief.data.category);
+  const autosave = useAutosave(local, {
+    enabled: canContribute && outcome === "in_place" && !!fields,
+    dirty,
+    save: async () => {
+      const snap = local;
+      await updateBrief(version.id, fields!, category, "");
+      base.current = { id: version.id, json: snap };
+      await qc.invalidateQueries({ queryKey: ["brief", version.id] });
+      void qc.invalidateQueries({ queryKey: ["project-journey"] });
+      void qc.invalidateQueries({ queryKey: ["review-readiness"] });
+    },
+  });
 
   const refresh = async (id?: string) => {
     await qc.invalidateQueries();
@@ -116,13 +157,11 @@ export function BriefEditor({
   if (brief.isError)
     return (
       <p role="alert" className="text-sm text-destructive">
-        {t("rv.failed")}
+        {friendlyError(brief.error, t)}
       </p>
     );
   const b = brief.data!;
-  const outcome = editOutcome(version.state);
   const editable = canContribute && outcome !== "blocked";
-  const dirty = JSON.stringify(fields) !== JSON.stringify(b.fields) || category !== b.category;
   const assumptionsEmpty = !fields.assumptions.ar.trim() && !fields.assumptions.en.trim();
   const sf = b.source_files as {
     file_name: string;
@@ -207,58 +246,67 @@ export function BriefEditor({
         </p>
       )}
 
-      {BRIEF_FIELDS.filter((f) => f !== "category").map((key) => {
-        const f = fields[key];
-        const ai = fieldAiBadges(b.fields[key]);
-        return (
-          <fieldset key={key} className="rounded-md border p-3">
-            <legend className="flex items-center gap-2 px-1 text-sm font-medium">
-              {t(k(`bf.${key}`))}
-              <span
-                className="prov-badge"
-                data-prov={f.provenance ?? "none"}
-                title={f.source_ref ?? undefined}
-              >
-                {t(k(`prov.${f.provenance ?? "none"}`))}
-              </span>
-              {ai.field && <AiBadge kind={ai.field} />}
-              {canContribute && isDraft && pending.includes(key) && (
-                <button
-                  type="button"
-                  className="btn-link"
-                  disabled={dirty || accept.isPending}
-                  onClick={() => accept.mutate(key)}
-                >
-                  {t("ai.accept")}
-                </button>
-              )}
-            </legend>
-            <div className="grid gap-2 md:grid-cols-2">
-              {(["ar", "en"] as const).map((lang) => (
-                <div key={lang}>
-                  <label
-                    htmlFor={`bf-${key}-${lang}`}
-                    className="flex items-center gap-2 text-xs text-muted-foreground"
+      {BRIEF_GROUPS.map((group, gi) => (
+        <details
+          key={group.id}
+          className="space-y-3 rounded-md border p-3"
+          open={gi === 0 || group.keys.some((key) => pending.includes(key))}
+        >
+          <summary className="cursor-pointer font-medium">{t(k(`bf.group.${group.id}`))}</summary>
+          {group.keys.map((key) => {
+            const f = fields[key];
+            const ai = fieldAiBadges(b.fields[key]);
+            return (
+              <fieldset key={key} className="rounded-md border p-3">
+                <legend className="flex items-center gap-2 px-1 text-sm font-medium">
+                  {t(k(`bf.${key}`))}
+                  <span
+                    className="prov-badge"
+                    data-prov={f.provenance ?? "none"}
+                    title={f.source_ref ?? undefined}
                   >
-                    {t(lang === "ar" ? "ps.ar" : "ps.en")}
-                    {ai[lang] && <AiBadge kind={ai[lang]!} />}
-                  </label>
-                  <textarea
-                    id={`bf-${key}-${lang}`}
-                    dir={lang === "ar" ? "rtl" : "ltr"}
-                    lang={lang}
-                    rows={key === "title" ? 1 : 2}
-                    className="field-input"
-                    readOnly={!editable}
-                    value={f[lang]}
-                    onChange={(e) => setField(key, lang, e.target.value)}
-                  />
+                    {t(k(`prov.${f.provenance ?? "none"}`))}
+                  </span>
+                  {ai.field && <AiBadge kind={ai.field} />}
+                  {canContribute && isDraft && pending.includes(key) && (
+                    <button
+                      type="button"
+                      className="btn-link"
+                      disabled={dirty || accept.isPending}
+                      onClick={() => accept.mutate(key)}
+                    >
+                      {t("ai.accept")}
+                    </button>
+                  )}
+                </legend>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {(["ar", "en"] as const).map((lang) => (
+                    <div key={lang}>
+                      <label
+                        htmlFor={`bf-${key}-${lang}`}
+                        className="flex items-center gap-2 text-xs text-muted-foreground"
+                      >
+                        {t(lang === "ar" ? "ps.ar" : "ps.en")}
+                        {ai[lang] && <AiBadge kind={ai[lang]!} />}
+                      </label>
+                      <textarea
+                        id={`bf-${key}-${lang}`}
+                        dir={lang === "ar" ? "rtl" : "ltr"}
+                        lang={lang}
+                        rows={key === "title" ? 1 : 2}
+                        className="field-input"
+                        readOnly={!editable}
+                        value={f[lang]}
+                        onChange={(e) => setField(key, lang, e.target.value)}
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </fieldset>
-        );
-      })}
+              </fieldset>
+            );
+          })}
+        </details>
+      ))}
 
       {editable && (
         <div className="space-y-3">
@@ -267,31 +315,39 @@ export function BriefEditor({
               {t("rv.lockedNote")}
             </p>
           )}
-          <div>
-            <label htmlFor="bf-summary" className="field-label">
-              {t("rv.summary")}
-            </label>
-            <input
-              id="bf-summary"
-              className="field-input"
-              maxLength={1000}
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-            />
-          </div>
-          {save.isError && (
-            <p role="alert" className="text-sm text-destructive">
-              {t("rv.failed")}
-            </p>
+          {outcome === "in_place" ? (
+            <AutosaveStatus {...autosave} />
+          ) : (
+            <>
+              <div>
+                <label htmlFor="bf-summary" className="field-label">
+                  {t("rv.summary")}
+                </label>
+                <input
+                  id="bf-summary"
+                  className="field-input"
+                  maxLength={1000}
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                />
+              </div>
+              {save.isError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {friendlyError(save.error, t)}
+                </p>
+              )}
+              <button
+                className="btn-primary"
+                disabled={!dirty || save.isPending}
+                onClick={() => save.mutate()}
+              >
+                {t("rv.proposeChild")}
+              </button>
+              {dirty && (
+                <span className="ms-3 text-sm text-muted-foreground">{t("ps.unsaved")}</span>
+              )}
+            </>
           )}
-          <button
-            className="btn-primary"
-            disabled={!dirty || save.isPending}
-            onClick={() => save.mutate()}
-          >
-            {outcome === "child" ? t("rv.proposeChild") : t("rv.saveDraft")}
-          </button>
-          {dirty && <span className="ms-3 text-sm text-muted-foreground">{t("ps.unsaved")}</span>}
         </div>
       )}
 
@@ -321,7 +377,7 @@ export function BriefEditor({
           </Link>
           {(confirm.isError || arch.isError || accept.isError) && (
             <p role="alert" className="w-full text-sm text-destructive">
-              {t("rv.failed")}
+              {friendlyError(confirm.error ?? arch.error ?? accept.error, t)}
             </p>
           )}
         </div>

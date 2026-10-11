@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { CheckCircle2, CircleAlert } from "lucide-react";
 import { useLocale } from "@/features/i18n/LocaleProvider";
 import type { MessageKey } from "@/features/i18n/locale";
 import { myProjectsQuery, type MyProject } from "@/features/projects/api";
@@ -31,6 +33,10 @@ import {
   type DecisionKind,
 } from "./rules";
 import { diffLines } from "./diff";
+import { friendlyError } from "@/features/guidance/errors";
+import { readinessQuery } from "@/features/guidance/api";
+import { readinessFix } from "@/features/guidance/journey";
+import type { Focus } from "@/features/navigation/focus";
 import { ReviewAi } from "@/features/ai/ReviewAi";
 
 const k = (s: string) => s as MessageKey;
@@ -40,13 +46,69 @@ function useInvalidateAll() {
   return () => void qc.invalidateQueries();
 }
 
-function ErrorNote({ show }: { show: boolean }) {
+function ErrorNote({ error }: { error: unknown }) {
   const { t } = useLocale();
-  return show ? (
+  return error ? (
     <p role="alert" className="text-sm text-destructive">
-      {t("rv.failed")}
+      {friendlyError(error, t)}
     </p>
   ) : null;
+}
+
+/** Pre-flight list mirroring the database review gates (review_readiness); the database stays authoritative. */
+function ReadinessList({
+  projectId,
+  artifactId,
+  versionId,
+}: {
+  projectId: string;
+  artifactId: string;
+  versionId: string;
+}) {
+  const { t, locale } = useLocale();
+  const q = useQuery(readinessQuery(versionId));
+  if (q.isError) return <ErrorNote error={q.error} />;
+  if (!q.data) return null;
+  return (
+    <div className="space-y-2" aria-labelledby="rd-title">
+      <h3 id="rd-title" className="text-sm font-semibold">
+        {t("rd.title")}
+      </h3>
+      <ul className="space-y-1 text-sm">
+        {q.data.checks.map((c) => {
+          const fix = c.ok ? null : readinessFix(c.check, projectId, artifactId);
+          const stage = locale === "ar" ? c.stage_ar : c.stage_en;
+          return (
+            <li key={c.check} className="flex flex-wrap items-center gap-2">
+              {c.ok ? (
+                <CheckCircle2 aria-hidden className="size-4 text-secondary" />
+              ) : (
+                <CircleAlert aria-hidden className="size-4 text-destructive" />
+              )}
+              <span className="sr-only">{c.ok ? t("rd.ok") : t("rd.missing")}</span>
+              <span>
+                {t(k(`rd.check.${c.check}`))}
+                {!c.ok && c.count ? ` (${c.count})` : ""}
+              </span>
+              {fix && (
+                <Link to={fix.to} search={fix.search} className="btn-link">
+                  {t("rd.fix")}
+                </Link>
+              )}
+              {!c.ok && c.check === "independent_approver" && stage && (
+                <span className="w-full text-muted-foreground">
+                  {t("rd.approverHint")} <span dir="auto">{stage}</span>
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <p role="status" className={q.data.ready ? "text-sm text-secondary" : "text-sm"}>
+        {q.data.ready ? t("rd.ready") : t("rd.notReady")}
+      </p>
+    </div>
+  );
 }
 
 function StateBadge({ state }: { state: Version["state"] }) {
@@ -58,10 +120,10 @@ function StateBadge({ state }: { state: Version["state"] }) {
   );
 }
 
-export function ReviewWorkspace({ userId }: { userId: string }) {
+export function ReviewWorkspace({ userId, focus = {} }: { userId: string; focus?: Focus }) {
   const { t } = useLocale();
   const projects = useQuery(myProjectsQuery(userId));
-  const [projectId, setProjectId] = useState<string>("");
+  const [projectId, setProjectId] = useState<string>(focus.project ?? "");
   const project = projects.data?.find((p) => p.id === projectId) ?? projects.data?.[0];
 
   if (projects.isLoading) return <p className="text-muted-foreground">…</p>;
@@ -87,16 +149,29 @@ export function ReviewWorkspace({ userId }: { userId: string }) {
           ))}
         </select>
       </div>
-      <ProjectReviews key={project.id} project={project} userId={userId} />
+      <ProjectReviews
+        key={project.id}
+        project={project}
+        userId={userId}
+        artifactId={project.id === focus.project ? focus.artifact : undefined}
+      />
     </div>
   );
 }
 
-function ProjectReviews({ project, userId }: { project: MyProject; userId: string }) {
+function ProjectReviews({
+  project,
+  userId,
+  artifactId: initialArtifact,
+}: {
+  project: MyProject;
+  userId: string;
+  artifactId?: string | undefined;
+}) {
   const { t, locale } = useLocale();
   const stages = useQuery(stagesQuery(project.id));
   const artifacts = useQuery(artifactsQuery(project.id));
-  const [artifactId, setArtifactId] = useState<string | null>(null);
+  const [artifactId, setArtifactId] = useState<string | null>(initialArtifact ?? null);
   const selected = artifacts.data?.find((a) => a.id === artifactId) ?? artifacts.data?.[0] ?? null;
   const canContribute = project.role !== "observer";
 
@@ -258,7 +333,7 @@ function NewArtifact({
             onChange={(e) => setContent(e.target.value)}
           />
         </div>
-        <ErrorNote show={m.isError} />
+        <ErrorNote error={m.error} />
         <button className="btn-primary" disabled={m.isPending || !title.trim()}>
           {t("rv.create")}
         </button>
@@ -416,7 +491,7 @@ function VersionEditor({
                 onChange={(e) => setSummary(e.target.value)}
               />
             </div>
-            <ErrorNote show={m.isError} />
+            <ErrorNote error={m.error} />
             <button
               className="btn-primary"
               disabled={m.isPending || (outcome === "child" && content === version.content)}
@@ -510,6 +585,7 @@ function ReviewPanel({
   // Request review
   const [note, setNote] = useState("");
   const [assignees, setAssignees] = useState<string[]>([]);
+  const readiness = useQuery({ ...readinessQuery(version.id), enabled: version.state === "draft" });
   const req = useMutation({
     mutationFn: () => requestReview(version.id, note, assignees),
     onSuccess: refresh,
@@ -569,6 +645,9 @@ function ReviewPanel({
           <h2 id="rv-request" className="mb-3 font-semibold">
             {t("rv.requestReview")}
           </h2>
+          <div className="mb-4">
+            <ReadinessList projectId={project.id} artifactId={artifactId} versionId={version.id} />
+          </div>
           <form
             className="space-y-3"
             onSubmit={(e) => {
@@ -592,8 +671,11 @@ function ReviewPanel({
               <legend className="field-label">{t("rv.assignees")}</legend>
               <MemberChecks id="rq-a" members={members} value={assignees} onChange={setAssignees} />
             </fieldset>
-            <ErrorNote show={req.isError} />
-            <button className="btn-primary" disabled={req.isPending}>
+            <ErrorNote error={req.error} />
+            <button
+              className="btn-primary"
+              disabled={req.isPending || readiness.data?.ready === false}
+            >
               {t("rv.requestReview")}
             </button>
           </form>
@@ -641,7 +723,7 @@ function ReviewPanel({
               <button className="chip-btn" disabled={!assignee || assign.isPending}>
                 {t("rv.assign")}
               </button>
-              <ErrorNote show={assign.isError} />
+              <ErrorNote error={assign.error} />
             </form>
           )}
 
@@ -704,7 +786,7 @@ function ReviewPanel({
                     ? t("rv.exceptionRequired")
                     : ""}
               </p>
-              <ErrorNote show={decide.isError} />
+              <ErrorNote error={decide.error} />
               <button className="btn-primary" disabled={decide.isPending}>
                 {t("rv.decide")}
               </button>
@@ -750,7 +832,7 @@ function ReviewPanel({
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">{t("rv.exceptionPending")}</p>
-                <ErrorNote show={addEx.isError} />
+                <ErrorNote error={addEx.error} />
                 <button
                   className="chip-btn"
                   disabled={addEx.isPending || !exTitle.trim() || !exJust.trim()}
@@ -945,7 +1027,7 @@ function ExceptionItem({
           {t("rv.exCommentRequired")}
         </p>
       )}
-      <ErrorNote show={decide.isError} />
+      <ErrorNote error={decide.error} />
     </li>
   );
 }
@@ -1098,7 +1180,7 @@ function CommentForm({
           exclude={userId}
         />
       </fieldset>
-      <ErrorNote show={m.isError} />
+      <ErrorNote error={m.error} />
       <div className="flex gap-2">
         <button className="chip-btn" disabled={m.isPending || !body.trim()}>
           {parentId ? t("rv.reply") : t("rv.post")}

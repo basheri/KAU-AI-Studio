@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocale } from "@/features/i18n/LocaleProvider";
@@ -20,6 +20,10 @@ import {
 import { ArchitectureAi } from "./ArchitectureAi";
 import { CourseSpecPanel } from "./CourseSpecPanel";
 import { unverifiedReferenceCount } from "@/features/ai/gate";
+import { friendlyError } from "@/features/guidance/errors";
+import { useAutosave } from "@/features/guidance/useAutosave";
+import { AutosaveStatus } from "@/features/guidance/AutosaveStatus";
+import { architectureForm } from "./normalize";
 
 const k = (s: string) => s as MessageKey;
 const newKey = () => `n-${crypto.randomUUID()}`;
@@ -42,21 +46,43 @@ export function ArchitectureEditor({
   const [mappings, setMappings] = useState<ArchMapping[]>([]);
   const [summary, setSummary] = useState("");
   const [tried, setTried] = useState(false);
+  // Local edits (and their keys) survive a refetch: server data replaces them only when the
+  // screen is unchanged since the last load or save and the server holds something different.
+  const form = useMemo(() => architectureForm(elements, mappings), [elements, mappings]);
+  const formRef = useRef(form);
   useEffect(() => {
-    if (arch.data) {
+    formRef.current = form;
+  });
+  const base = useRef<{ id: string; form: string } | null>(null);
+  useEffect(() => {
+    if (!arch.data) return;
+    const server = architectureForm(arch.data.elements, arch.data.mappings);
+    const otherVersion = !base.current || base.current.id !== version.id;
+    if (otherVersion || (formRef.current === base.current!.form && server !== formRef.current)) {
       setElements(arch.data.elements);
       setMappings(arch.data.mappings);
     }
-  }, [arch.data]);
+    if (otherVersion || formRef.current === base.current!.form)
+      base.current = { id: version.id, form: server };
+  }, [arch.data, version.id]);
 
   const defects = useMemo(() => checkAlignment(elements, mappings), [elements, mappings]);
   const outcome = editOutcome(version.state);
   const editable = canContribute && outcome !== "blocked";
-  const dirty =
-    !!arch.data &&
-    (JSON.stringify(elements) !== JSON.stringify(arch.data.elements) ||
-      JSON.stringify(mappings) !== JSON.stringify(arch.data.mappings));
+  const dirty = !!arch.data && form !== architectureForm(arch.data.elements, arch.data.mappings);
   const missingLabel = elements.some((e) => !e.label_ar.trim() && !e.label_en.trim());
+  const autosave = useAutosave(form, {
+    enabled: canContribute && outcome === "in_place" && !missingLabel,
+    dirty,
+    save: async () => {
+      const snap = form;
+      await saveArchitecture(version.id, elements, mappings, "");
+      base.current = { id: version.id, form: snap };
+      await qc.invalidateQueries({ queryKey: ["architecture", version.id] });
+      void qc.invalidateQueries({ queryKey: ["project-journey"] });
+      void qc.invalidateQueries({ queryKey: ["review-readiness"] });
+    },
+  });
 
   const save = useMutation({
     mutationFn: () => saveArchitecture(version.id, elements, mappings, summary),
@@ -77,7 +103,7 @@ export function ArchitectureEditor({
   if (arch.isError)
     return (
       <p role="alert" className="text-sm text-destructive">
-        {t("rv.failed")}
+        {friendlyError(arch.error, t)}
       </p>
     );
 
@@ -293,39 +319,47 @@ export function ArchitectureEditor({
               {t("rv.lockedNote")}
             </p>
           )}
-          <div>
-            <label htmlFor="ar-summary" className="field-label">
-              {t("rv.summary")}
-            </label>
-            <input
-              id="ar-summary"
-              className="field-input"
-              maxLength={1000}
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-            />
-          </div>
-          {tried && missingLabel && (
+          {(tried || outcome === "in_place") && missingLabel && (
             <p role="alert" className="text-sm text-destructive">
               {t("ps.labelRequired")}
             </p>
           )}
-          {save.isError && (
-            <p role="alert" className="text-sm text-destructive">
-              {t("rv.failed")}
-            </p>
+          {outcome === "in_place" ? (
+            <AutosaveStatus {...autosave} />
+          ) : (
+            <>
+              <div>
+                <label htmlFor="ar-summary" className="field-label">
+                  {t("rv.summary")}
+                </label>
+                <input
+                  id="ar-summary"
+                  className="field-input"
+                  maxLength={1000}
+                  value={summary}
+                  onChange={(e) => setSummary(e.target.value)}
+                />
+              </div>
+              {save.isError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {friendlyError(save.error, t)}
+                </p>
+              )}
+              <button
+                className="btn-primary"
+                disabled={!dirty || save.isPending}
+                onClick={() => {
+                  setTried(true);
+                  if (!missingLabel) save.mutate();
+                }}
+              >
+                {t("rv.proposeChild")}
+              </button>
+              {dirty && (
+                <span className="ms-3 text-sm text-muted-foreground">{t("ps.unsaved")}</span>
+              )}
+            </>
           )}
-          <button
-            className="btn-primary"
-            disabled={!dirty || save.isPending}
-            onClick={() => {
-              setTried(true);
-              if (!missingLabel) save.mutate();
-            }}
-          >
-            {outcome === "child" ? t("rv.proposeChild") : t("rv.saveDraft")}
-          </button>
-          {dirty && <span className="ms-3 text-sm text-muted-foreground">{t("ps.unsaved")}</span>}
         </div>
       )}
       <Link to="/reviews" className="btn-link">

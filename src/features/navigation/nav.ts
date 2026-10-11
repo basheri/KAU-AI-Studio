@@ -26,6 +26,8 @@ export interface NavItem {
   label: MessageKey;
   description: MessageKey;
   icon: LucideIcon;
+  /** Not built yet: kept routable but left out of menus so nobody lands on an empty page. */
+  hidden?: true;
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -40,11 +42,20 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: "/course-studio", label: "nav.course", description: "desc.course", icon: BookOpen },
   { to: "/compliance", label: "nav.compliance", description: "desc.compliance", icon: ShieldCheck },
   { to: "/reviews", label: "nav.reviews", description: "desc.reviews", icon: MessagesSquare },
-  { to: "/media", label: "nav.media", description: "desc.media", icon: Image },
-  { to: "/exports", label: "nav.exports", description: "desc.exports", icon: FileDown },
+  { to: "/media", label: "nav.media", description: "desc.media", icon: Image, hidden: true },
+  {
+    to: "/exports",
+    label: "nav.exports",
+    description: "desc.exports",
+    icon: FileDown,
+    hidden: true,
+  },
   { to: "/settings", label: "nav.settings", description: "desc.settings", icon: Settings },
 ];
 
 export function navItem(to: NavItem["to"]): NavItem {
   return NAV_ITEMS.find((n) => n.to === to)!;
 }
+
+/** Sections shown in menus and on the home page. */
+export const VISIBLE_NAV_ITEMS: readonly NavItem[] = NAV_ITEMS.filter((n) => !n.hidden);

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Sparkles } from "lucide-react";
 import { useLocale } from "@/features/i18n/LocaleProvider";
 import type { MessageKey } from "@/features/i18n/locale";
-import { errText } from "./api";
+import { friendlyError } from "@/features/guidance/errors";
 import { useAiEnabled } from "./useAiEnabled";
 
 export function AiError({ error }: { error: unknown }) {
@@ -10,7 +10,7 @@ export function AiError({ error }: { error: unknown }) {
   if (!error) return null;
   return (
     <p role="alert" className="text-sm text-destructive">
-      {errText(error) || t("rv.failed")}
+      {friendlyError(error, t)}
     </p>
   );
 }

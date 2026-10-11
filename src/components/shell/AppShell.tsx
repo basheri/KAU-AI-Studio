@@ -2,7 +2,8 @@ import { useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Languages, LogOut, Menu, X, UserRound } from "lucide-react";
 import { useLocale } from "@/features/i18n/LocaleProvider";
-import { NAV_ITEMS } from "@/features/navigation/nav";
+import { VISIBLE_NAV_ITEMS } from "@/features/navigation/nav";
+import { MyWorkCount } from "@/features/guidance/MyWork";
 import type { Session } from "@/features/session/session";
 
 export function AppShell({
@@ -33,7 +34,7 @@ export function AppShell({
           </div>
         </div>
         <nav aria-label={t("nav.label")} className="space-y-1 p-3">
-          {NAV_ITEMS.map((item) => (
+          {VISIBLE_NAV_ITEMS.map((item) => (
             <Link
               key={item.to}
               to={item.to}
@@ -44,6 +45,9 @@ export function AppShell({
             >
               <item.icon className="size-4 shrink-0" aria-hidden />
               <span>{t(item.label)}</span>
+              {item.to === "/" && session.status === "signed-in" && (
+                <MyWorkCount userId={session.userId} />
+              )}
             </Link>
           ))}
         </nav>

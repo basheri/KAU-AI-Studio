@@ -11,6 +11,9 @@ import {
   type ProgramCategory,
 } from "./brief";
 import { createBrief, uploadProposal, UploadRejected } from "./api";
+import { aiDraftBrief } from "@/features/ai/ai.functions";
+import { useAiEnabled } from "@/features/ai/useAiEnabled";
+import { friendlyError } from "@/features/guidance/errors";
 
 const k = (s: string) => s as MessageKey;
 
@@ -31,9 +34,13 @@ export function IntakeForm({
   const [sourceLabel, setSourceLabel] = useState("");
   const [sourceText, setSourceText] = useState("");
   const [problem, setProblem] = useState<MessageKey | null>(null);
+  const [idea, setIdea] = useState("");
+  const [aiNote, setAiNote] = useState("");
+  const ai = useAiEnabled();
 
   const m = useMutation({
     mutationFn: async () => {
+      setAiNote("");
       const fields = { title: { ar: titleAr, en: titleEn } };
       if (mode === "document_upload") {
         const up = await uploadProposal(projectId, file!);
@@ -52,15 +59,26 @@ export function IntakeForm({
           },
         });
       }
-      return createBrief({ projectId, mode, category, fields });
+      const vid = await createBrief({ projectId, mode, category, fields });
+      // Optional head start: AI fills only the empty fields as AI drafts a person must accept.
+      if (ai.enabled && idea.trim().length >= 10) {
+        try {
+          await aiDraftBrief({ data: { versionId: vid, idea: idea.trim() } });
+        } catch (e) {
+          setAiNote(friendlyError(e, t));
+        }
+      }
+      return vid;
     },
     onSuccess: (vid) => {
+      setIdea("");
       setTitleAr("");
       setTitleEn("");
       setFile(null);
       setSourceText("");
       setSourceLabel("");
       void qc.invalidateQueries({ queryKey: ["structured-artifacts", projectId] });
+      void qc.invalidateQueries({ queryKey: ["brief", vid] });
       onCreated(vid);
     },
     onError: (e) => {
@@ -167,6 +185,22 @@ export function IntakeForm({
           />
         </div>
       </div>
+      {mode === "guided_idea" && ai.enabled && (
+        <div>
+          <label htmlFor="in-idea" className="field-label">
+            {t("ps.ideaOptional")}
+          </label>
+          <textarea
+            id="in-idea"
+            dir="auto"
+            rows={3}
+            maxLength={4000}
+            className="field-input"
+            value={idea}
+            onChange={(e) => setIdea(e.target.value)}
+          />
+        </div>
+      )}
       {mode === "document_upload" && (
         <div>
           <label htmlFor="in-file" className="field-label">
@@ -228,7 +262,12 @@ export function IntakeForm({
       )}
       {m.isError && !(m.error instanceof UploadRejected) && (
         <p role="alert" className="text-sm text-destructive">
-          {t("rv.failed")}
+          {friendlyError(m.error, t)}
+        </p>
+      )}
+      {aiNote && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {aiNote}
         </p>
       )}
       <button className="btn-primary" disabled={m.isPending}>

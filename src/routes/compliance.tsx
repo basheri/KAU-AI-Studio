@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { parseFocus, type Focus } from "@/features/navigation/focus";
 import { ModulePage } from "@/components/shell/ModulePage";
 import { OtpSignIn } from "@/features/auth/OtpSignIn";
 import { ComplianceLibrary } from "@/features/compliance/ComplianceLibrary";
@@ -18,11 +19,13 @@ export const Route = createFileRoute("/compliance")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>): Focus => parseFocus(search),
   component: CompliancePage,
 });
 
 function CompliancePage() {
   const session = useSession();
+  const focus = Route.useSearch();
   return (
     <ModulePage to="/compliance">
       {session.status === "loading" ? (
@@ -32,7 +35,7 @@ function CompliancePage() {
       ) : session.status === "signed-out" ? (
         <OtpSignIn />
       ) : (
-        <ComplianceLibrary userId={session.userId} />
+        <ComplianceLibrary key={JSON.stringify(focus)} userId={session.userId} focus={focus} />
       )}
     </ModulePage>
   );

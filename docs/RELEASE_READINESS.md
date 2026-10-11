@@ -9,6 +9,7 @@ Status: **not release-ready**. The core scope is incomplete (media-rights workfl
 | Storage authorization | Yes (`project-sources`) | Non-member list/download/upload denied in `intake.db.ts` |
 | Mutations via audited RPCs | Yes | Writes only through security-definer RPCs; tables are SELECT-only to users |
 | AI assistance | Built; off by default; verified locally (0009) | Drafts only; AI provenance and review gates in the database; full usage log; `tests/sql/run.sh` 64/64; no live provider calls yet. See `docs/AI_SETUP.md` |
+| Guidance and ease of use | Built; verified locally (0010) | My work, journey tracker, review-readiness checklist mirroring the gates, autosave for brief/architecture drafts, plain errors. `tests/sql/run.sh` 87/87; usability test with users pending (`docs/USABILITY_TEST.md`) |
 | Segregation of duties | Built and verified locally (0008) | No self-decision (except export freeze); compliance stage cannot be removed; exceptions need independent approval. `tests/sql/run.sh`: 29/29 on PostgreSQL 16; live-backend run pending |
 | Immutability of approved/in-review | Yes | Lock triggers apply to every role, tested with the service key |
 | Security linter | 1 info (intentional locked `platform_admins`) and 30 warnings for RPCs meant to be callable (each checks role itself) | `supabase linter` |
@@ -31,4 +32,6 @@ Status: **not release-ready**. The core scope is incomplete (media-rights workfl
 - Compliance sources and rules are project-specific; there is no institution-wide, officially approved library yet.
 - The embed allowlist (YouTube no-cookie, YouTube, Vimeo player) is an interim platform default and needs institutional approval.
 - Media are records with an https source and rights note; no upload or rights approval yet.
-- Autosave sends the whole course; two people editing the same draft at once: the last save wins.
+- `review_readiness` must be updated whenever a review gate changes, or the checklist will mislead (the database still blocks).
+- Notifications are in-app only (My work count); no email until the sender domain is configured.
+- Autosave sends the whole brief, architecture or course; two people editing the same draft at once: the last save wins.
