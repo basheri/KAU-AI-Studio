@@ -4,7 +4,7 @@ AI assistance is **off by default**. Nothing is sent to an AI provider until a p
 
 ## Turning it on (platform owner)
 1. Decide where the AI may run (university data policy; PDPL / SDAIA guidance). The built-in provider is Claude through Anthropic's API (`claude-opus-5-5` by default).
-2. In the backend's server secrets (Lovable Cloud → secrets), add:
+2. In the web server's environment (see `.env.example` and docs/DEPLOYMENT.md), add:
    - `ANTHROPIC_API_KEY` — the provider key (never exposed to browsers).
    - `AI_ENABLED` = `true` — the explicit switch. Without it, AI stays off even when a key exists.
    - Optional `AI_MODEL` — another model id, if policy requires.

@@ -227,3 +227,32 @@ Provider: Claude via the official Anthropic SDK (`claude-opus-5-5` default, adap
 1. Import one SCORM package into the university's Blackboard test course before announcing the feature.
 2. Compare the course specification with the current official NCAAA template; adjust section wording if the template has changed.
 3. Media files are linked (https), not packaged; offline SCORM needs media upload and rights approval (Media module).
+
+## Increment 10 — Leaving Lovable: vendor-neutral build and self-hosting (migration 0012)
+
+### Ruling (options compared)
+| Option | Effort | Control | Ruling |
+|---|---|---|---|
+| A. Stay on Lovable Cloud and hosting | None | Vendor holds data and hosting; residency unanswered | Rejected (owner decision) |
+| B. **Standard build + Node server container + any Supabase backend (self-hosted for production), scripted migrations** | Low in code; backend set-up by IT | Full | **Chosen** |
+| C. Rewrite on another stack | High | Full | Rejected: the code was already portable |
+
+### Changes
+- `vite.config.ts`: standard plugins (TanStack Start with server-only import protection, React, Tailwind, path aliases); Nitro `node-server` preset by default (`NITRO_PRESET` to change). `@lovable.dev/vite-tanstack-config` removed.
+- Removed the Lovable editor add-ons: preview login brokering (sessions now use normal browser storage) and Lovable error telemetry (replaced by `src/lib/error-reporting.ts`, one hook for a future monitoring service). `.lovable/` removed; error messages point to docs/DEPLOYMENT.md.
+- `bun.lock` downloads from the public npm registry instead of Lovable's private mirror (same integrity hashes); clean install verified.
+- `scripts/migrate.sh` (`bun run db:migrate`, `db:status`, `--baseline`): ordered, one transaction per file, records name + SHA-256 in `app_meta.applied_migrations`, refuses edited applied files.
+- Migration `0012_storage_bucket`: the private `project-sources` bucket (10 MB; PDF, DOCX, TXT, MD), previously created by hand in the hosting console, so a fresh backend is complete.
+- `Dockerfile` (two stages, non-root, health check; public values as build arguments, secrets at run time), `.dockerignore`, `.env.example`, `docs/DEPLOYMENT.md`. E2E scripts derive the session key from the configured backend instead of a hard-coded project id.
+
+### Evidence
+- Migration runner on a blank database: 13 applied; second run 0 applied; edited file refused; `--baseline 0010` on a copy applied only the rest.
+- `tests/sql/run.sh`: 0000–0012 — **111/111 checks passed** (bucket created, private, idempotent).
+- `docker build` succeeded; container served `/` and `/exports` with 200, running as the `node` user. (In this environment base images came from a public mirror and the build trusted the sandbox proxy certificate; the committed Dockerfile is unchanged.)
+- Standalone `node .output/server/index.mjs`: pages 200, unknown route 404.
+- typecheck clean; lint 0 errors; unit/screen tests and build: see commit.
+
+### Remaining
+1. IT: provision the backend (self-hosted Supabase recommended for production), SMTP sender, HTTPS front end, backups.
+2. Run `bun run test:db` and the E2E scripts against the new backend.
+3. Disconnect the Lovable GitHub link after the new system passes its checks; rotate keys that were stored in Lovable.

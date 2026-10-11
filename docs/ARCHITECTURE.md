@@ -11,7 +11,7 @@
 - **Layout direction:** use logical utilities (`ms-`, `me-`, `start-`, `border-e`) so components flip automatically between RTL and LTR.
 
 ## Identity and data isolation (increment 2)
-- **Auth:** email OTP via Lovable Cloud auth (`signInWithOtp` + `verifyOtp`). The client rejects non-`@kau.edu.sa` addresses before any request; a database trigger on account creation rejects them again.
+- **Auth:** email OTP via Supabase Auth (`signInWithOtp` + `verifyOtp`). The client rejects non-`@kau.edu.sa` addresses before any request; a database trigger on account creation rejects them again.
 - **Schema:** `profiles`, `platform_admins`, `projects`, `project_members`, `project_invitations`, `project_settings`, `project_files`, `project_comments`, `project_exports`, `audit_events`.
 - **RLS:** every project-owned table is readable only when `is_project_member(project_id)`. No direct inserts into projects/members/invitations/audit; writes go through audited RPCs. Invitations require explicit `accept_invitation` by the matching signed-in email.
 - **Admin:** `admin_list_projects()` works only for users in `platform_admins` (granted by service role only) and records an audit event.

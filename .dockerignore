@@ -1,0 +1,9 @@
+node_modules
+.output
+.git
+.env
+.env.*
+!.env.example
+.wrangler
+tests/e2e/*.json
+*.log

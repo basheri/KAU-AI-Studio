@@ -15,13 +15,15 @@ Status: **not release-ready**. The core scope is incomplete (media-rights workfl
 | Immutability of approved/in-review | Yes | Lock triggers apply to every role, tested with the service key |
 | Security linter | 1 info (intentional locked `platform_admins`) and 30 warnings for RPCs meant to be callable (each checks role itself) | `supabase linter` |
 | Accessibility | Partial: labelled controls, keyboard tested in E2E; no full WCAG 2.2 AA audit yet | — |
-| Pending external configuration | Sender email domain and code-based sign-in emails; first platform admin | — |
+| Pending external configuration | New backend (self-hosted Supabase recommended), SMTP sender for sign-in codes, HTTPS front end, backups, first platform admin | `docs/DEPLOYMENT.md` |
+| Hosting independence | Done in code (no Lovable dependency) | Standard build, Node server, Dockerfile verified; migrations scripted (`scripts/migrate.sh`); 0012 adds the storage bucket |
 | Course content safety | Yes | Strict per-type payload schema in the database; HTML/script text rejected; content rendered as text only (no injected HTML); embeds need https, render only for approved hosts, sandboxed iframe |
 | Review gate for courses | Yes | Critical content defects block `request_review` in the database (`course.db.ts`) |
 | Responsive / RTL | Course Studio checked at 1280 and 390 wide, Arabic and English | `course_studio.py` |
 | Compliance gate | Built, not yet verified against the backend | Open blocker findings block review request and approval (triggers in `0007`); `compliance.db.ts` covers it |
 
 ## Open risks
+- Leaving Lovable: until IT provisions the new backend, the only live environment is still Lovable Cloud. Disconnect Lovable only after the new system passes `docs/DEPLOYMENT.md` step 6.
 - **AI hosting decision pending:** where the model may run and what data may leave the university (PDPL/SDAIA). AI stays off until `AI_ENABLED=true` and a key are set.
 - AI output quality (Arabic register, outcome quality, references) is untested with real users; plan a pilot and watch the unchanged-acceptance rate.
 - Course Studio and architecture AI insertions are accepted by the person who inserts them; only briefs keep a persistent AI label in the database.

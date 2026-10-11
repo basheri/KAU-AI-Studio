@@ -85,6 +85,13 @@
       "when": 1791703195002,
       "tag": "0011_exports",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791705821329,
+      "tag": "0012_storage_bucket",
+      "breakpoints": true
     }
   ]
 }

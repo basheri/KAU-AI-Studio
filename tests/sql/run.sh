@@ -1,5 +1,5 @@
 #!/bin/bash
-# Local, key-free checks of the security migrations (0008 segregation of duties, 0009 AI assistance, 0010 guidance, 0011 exports) on plain PostgreSQL 16.
+# Local, key-free checks of the security migrations (0008 segregation of duties, 0009 AI assistance, 0010 guidance, 0011 exports, 0012 storage bucket) on plain PostgreSQL 16.
 # Builds a throwaway database: Supabase stubs -> migrations 0000-0007 -> pre-0008 fixtures -> 0008 -> checks -> 0009 -> checks -> 0010 -> checks -> 0011 -> checks.
 # Connection comes from the standard PG* variables (PGHOST, PGPORT, PGUSER). Run: bash tests/sql/run.sh
 # This complements, and does not replace, `bun run test:db` against the real backend.
@@ -21,4 +21,7 @@ $P -d "$DB" -f "$M/0010_guidance.sql"
 $P -d "$DB" -f "$HERE/0010_checks.sql" | grep -v '^$' | grep -vE '^[0-9a-f-]{36}$|^\{'
 $P -d "$DB" -f "$M/0011_exports.sql"
 $P -d "$DB" -f "$HERE/0011_checks.sql" | grep -v '^$' | grep -vE '^[0-9a-f-]{36}$|^\{'
+$P -d "$DB" -f "$M/0012_storage_bucket.sql"
+$P -d "$DB" -f "$M/0012_storage_bucket.sql"   # idempotent: a second run must also succeed
+$P -At -d "$DB" -c "SELECT CASE WHEN public = false AND file_size_limit = 10485760 THEN 'ok: private project-sources bucket, 10 MB' ELSE 'FAIL bucket' END FROM storage.buckets WHERE id = 'project-sources'"
 $P -d postgres -c "DROP DATABASE $DB" >/dev/null

@@ -11,7 +11,12 @@ Private workspace for King Abdulaziz University program and course design. This 
 - Search engines blocked (`robots.txt` + `noindex`).
 
 ## Scripts
-- `bun run dev` — dev server
-- `bun run test` — Vitest (locale direction, signed-out shell, routing)
+- `bun run dev` — development server (copy `.env.example` to `.env` first)
+- `bun run build` / `bun run start` — production build and Node server
+- `bun run db:migrate` / `bun run db:status` — apply / list database migrations (`DATABASE_URL` required)
+- `bun run test` — unit and screen tests; `bash tests/sql/run.sh` — database checks on plain PostgreSQL; `bun run test:db` — tests against a live backend
+
+## Hosting
+Self-hosted: a Node server (or the `Dockerfile`) and a Supabase backend. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

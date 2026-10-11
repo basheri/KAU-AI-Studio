@@ -1,14 +1,7 @@
-<!-- LOVABLE:BEGIN -->
 > [!IMPORTANT]
-> This project is connected to [Lovable](https://lovable.dev). Avoid rewriting
-> published git history — force pushing, or rebasing/amending/squashing commits
-> that are already pushed — as it rewrites history on Lovable's side and the
-> user will likely lose their project history.
->
-> Commits you push to the connected branch sync back to Lovable and show up in
-> the editor, so keep the branch in a working state.
-<!-- LOVABLE:END -->
-
+> The project is self-hosted (no Lovable): a Node server built by Vite/TanStack Start and a Supabase backend.
+> Do not rewrite published git history (no force pushing, rebasing or amending pushed commits).
+> Keep the default branch deployable: `bun run build` and `bun run db:migrate` must succeed. See docs/DEPLOYMENT.md.
 ## Project rules
 - UI strings live in `src/features/i18n/locale.ts` typed dictionaries; Arabic is default/RTL — why: Arabic-first university product.
 - Navigation sections come only from `NAV_ITEMS` in `src/features/navigation/nav.ts` — why: one source for shell, dashboard and tests.
@@ -43,3 +36,6 @@
 - Draft editors autosave through `useAutosave`; locked versions keep the explicit "propose a new version" action — why: no lost work, and no silent new versions.
 - Exports are built only in `src/features/exports/exports.functions.ts`: content read as the user, file fingerprinted, logged by the service-role `record_export` (migration `0011`) before it is returned; official exports only from `approved` versions, previews watermarked — why: every circulating file is traceable and drafts never pass as approved.
 - Export documents escape all text and use only the safe rich-text subset; SCORM embeds follow `embedSrc` — why: exported packages must be as safe as the learner preview.
+- Database changes are new numbered files in `drizzle/migrations/`, applied by `scripts/migrate.sh` (`bun run db:migrate`), which records each file's SHA-256 and refuses edited files; never edit an applied migration — why: every environment gets the same, auditable schema.
+- Everything the backend needs (buckets, policies, functions) is created by migrations, never by hand in a console — why: a fresh backend must be reproducible (0012 adds the bucket that was once created by hand).
+- The build is vendor-neutral (`vite.config.ts`, Nitro `node-server` preset, `Dockerfile`); public values are `VITE_*` build arguments, secrets are runtime environment only — why: portable hosting with no secrets in images or browser code.
